@@ -17,18 +17,14 @@ typedef struct Client {
   WebKitHitTestResult *mousepos;
   GTlsCertificate *cert, *failedcert;
   GTlsCertificateFlags tlserr;
-  //Window xid;
   unsigned long pageid;
   int progress, fullscreen, https, insecure, errorpage;
   const char *title, *overtitle, *targeturi;
   const char *needle;
-
-  int x, y, w, h;
-
-  struct Client *next;
+  //int x, y, w, h;
 } Client;
 
-static Client *c;
+//static Client *c;
 static GtkWidget *fixed;
 
 /*
@@ -40,33 +36,6 @@ static gboolean closeWebViewCb(WebKitWebView* webView, GtkWidget* window)
     return TRUE;
 }
 */
-
-void bind_function(emacs_env *env, const char *name, emacs_value Sfun)
-{
-  emacs_value Qfset = env->intern(env, "fset");
-  emacs_value Qsym = env->intern(env, name);
-
-  env->funcall(env, Qfset, 2, (emacs_value[]){Qsym, Sfun});
-}
-
-static emacs_value
-webkitgtk_load_uri(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
-{
-    (void)ptr;
-    (void)n;
-  /*
-    if (env->non_local_exit_check(env) != emacs_funcall_exit_return)
-        return nil;
-  */
-  ptrdiff_t MAX_LEN = 256;
-  char buf[MAX_LEN];
-  env->copy_string_contents (env, args[0], buf, &MAX_LEN);
-
-  webkit_web_view_load_uri(c->view, buf);
-
-  return Qnil;
-}
-
 
 void print_widgets(GList *widgets)
 {
@@ -103,14 +72,27 @@ GtkWidget *find_fixed_widget(GList *widgets)
 }
 
 static emacs_value
+webkitgtk_load_uri(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  /*
+    if (env->non_local_exit_check(env) != emacs_funcall_exit_return)
+        return nil;
+  */
+  ptrdiff_t MAX_LEN = 256;
+  char buf[MAX_LEN];
+  env->copy_string_contents (env, args[1], buf, &MAX_LEN);
+
+  printf("loading %p uri: %s\n", c, buf);
+  webkit_web_view_load_uri(c->view, buf);
+  return Qnil;
+}
+
+static emacs_value
 webkitgtk_hide(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  (void)env;
-  (void)args;
-  (void)ptr;
-  (void)n;
-
-  printf("hiding\n");
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  printf("hiding %p\n", c);
   gtk_widget_hide(GTK_WIDGET(c->view));
   return Qnil;
 }
@@ -118,12 +100,8 @@ webkitgtk_hide(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 static emacs_value
 webkitgtk_show(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  (void)env;
-  (void)args;
-  (void)ptr;
-  (void)n;
-
-  printf("showing\n");
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  printf("showing %p\n", c);
   gtk_widget_show(GTK_WIDGET(c->view));
   return Qnil;
 }
@@ -131,51 +109,57 @@ webkitgtk_show(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 static emacs_value
 webkitgtk_resize(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  (void)ptr;
-  (void)n;
-  c->w = env->extract_integer(env, args[0]);
-  c->h = env->extract_integer(env, args[1]);
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  int x = env->extract_integer(env, args[1]);
+  int y = env->extract_integer(env, args[2]);
+  int w = env->extract_integer(env, args[3]);
+  int h = env->extract_integer(env, args[4]);
 
-  printf("resizing to w:%d h:%d\n", c->w, c->h);
-  gtk_widget_set_size_request(GTK_WIDGET(c->view), c->w, c->h);
+  printf("resize %p to (x:%d y:%d w:%d h:%d)\n", c, x, y, w, h);
+  //if ((x != c->x) || (y != c->y))
+  gtk_fixed_move(GTK_FIXED(fixed), GTK_WIDGET(c->view), x, y);
+  //c->x = x;
+  //c->y = y;
+  //if ((w != c->w) || (y != c->w))
+  gtk_widget_set_size_request(GTK_WIDGET(c->view), w, h);
+  //c->w = w;
+  //c->h = h;
+
   return Qnil;
 }
 
-static emacs_value
-webkitgtk_move(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+//static emacs_value
+//webkitgtk_destroy(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+void
+webkitgtk_destroy(void *ptr)
 {
-  (void)ptr;
-  (void)n;
-  c->x = env->extract_integer(env, args[0]);
-  c->y = env->extract_integer(env, args[1]);
-
-  printf("moving to x:%d y:%d\n", c->x, c->y);
-  gtk_fixed_move(GTK_FIXED(fixed), GTK_WIDGET(c->view), c->x, c->y);
-  return Qnil;
-}
-
-static emacs_value
-webkitgtk_destroy(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
-{
-  (void)env;
-  (void)args;
-  (void)ptr;
-  (void)n;
-  printf("destroying\n");
+  printf("destroying %p\n", ptr);
   //gtk_widget_destroy(GTK_WIDGET(c->view));
+  Client *c = (Client *)ptr;
   gtk_container_remove(GTK_CONTAINER(fixed), GTK_WIDGET(c->view));
-  return Qnil;
+
+  free(c);
 }
 
 static emacs_value
-webkitgtk_new_view(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_new(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  (void)ptr;
-  (void)n;
+  /*
   c->x = env->extract_integer(env, args[0]);
   c->y = env->extract_integer(env, args[1]);
   c->w = env->extract_integer(env, args[2]);
   c->h = env->extract_integer(env, args[3]);
+  c->x = 0;
+  c->y = 0;
+  c->w = 0;
+  c->h = 0;
+  */
+  Client *c;
+  if (!(c = calloc(1, sizeof(Client))))
+    {
+      printf("Cannot malloc!\n");
+      return Qnil;
+    }
 
   //gtk_init_check(&argc, &argv);
 
@@ -187,10 +171,11 @@ webkitgtk_new_view(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   //WebKitWebView *web_view = WEBKIT_WEB_VIEW(webkit_web_view_new());
   c->view = WEBKIT_WEB_VIEW(webkit_web_view_new());
 
-  gtk_widget_set_size_request(GTK_WIDGET(c->view), c->w, c->h);
+  //gtk_widget_set_size_request(GTK_WIDGET(c->view), c->w, c->h);
   // Put the browser area into the main window
   //gtk_container_add(GTK_CONTAINER(main_window), GTK_WIDGET(c->view));
-  gtk_fixed_put(GTK_FIXED(fixed), GTK_WIDGET(c->view), c->x, c->y);
+  //gtk_fixed_put(GTK_FIXED(fixed), GTK_WIDGET(c->view), c->x, c->y);
+  gtk_fixed_put(GTK_FIXED(fixed), GTK_WIDGET(c->view), 0, 0);
 
   gtk_widget_set_focus_on_click (GTK_WIDGET(c->view), FALSE);
   // Set up callbacks so that if either the main window or the browser instance is
@@ -199,7 +184,7 @@ webkitgtk_new_view(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   //g_signal_connect(c->view, "close", G_CALLBACK(closeWebViewCb), main_window);
 
   // Load a web page into the browser instance
-  webkit_web_view_load_uri(c->view, "http://www.webkitgtk.org/");
+  //webkit_web_view_load_uri(c->view, "http://www.webkitgtk.org/");
 
   // Make sure that when the browser area becomes visible, it will get mouse
   // and keyboard events
@@ -212,17 +197,20 @@ webkitgtk_new_view(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   // Run the main GTK+ event loop
   //gtk_main();
 
-  return Qnil;
+  return env->make_user_ptr(env, webkitgtk_destroy, (void *)c);
+}
+
+void bind_function(emacs_env *env, const char *name, emacs_value Sfun)
+{
+  emacs_value Qfset = env->intern(env, "fset");
+  emacs_value Qsym = env->intern(env, name);
+
+  env->funcall(env, Qfset, 2, (emacs_value[]){Qsym, Sfun});
 }
 
 int
 emacs_module_init(struct emacs_runtime *ert)
 {
-  if (!(c = calloc(1, sizeof(Client))))
-    {
-      printf("Cannot malloc!\n");
-      return 1;
-    }
   print_widgets(gtk_window_list_toplevels());
 
   fixed = find_fixed_widget(gtk_window_list_toplevels());
@@ -238,14 +226,18 @@ emacs_module_init(struct emacs_runtime *ert)
   Qt = env->make_global_ref(env, env->intern(env, "t"));
   Qnil = env->make_global_ref(env, env->intern(env, "nil"));
   emacs_value fun;
-  fun = env->make_function(env, 4, 4, webkitgtk_new_view,
+  fun = env->make_function(env, 0, 0, webkitgtk_new,
                            "new view", NULL);
-  bind_function(env, "webkitgtk-new-view", fun);
+  bind_function(env, "webkitgtk-new", fun);
 
-  fun = env->make_function(env, 0, 0, webkitgtk_destroy,
-                           "destroy", NULL);
-  bind_function(env, "webkitgtk-destroy", fun);
+  //fun = env->make_function(env, 0, 0, webkitgtk_destroy,
+  //                         "destroy", NULL);
+  //bind_function(env, "webkitgtk-destroy", fun);
 
+  fun = env->make_function(env, 5, 5, webkitgtk_resize,
+                           "resize", NULL);
+  bind_function(env, "webkitgtk-resize", fun);
+  /*
   fun = env->make_function(env, 2, 2, webkitgtk_move,
                            "move", NULL);
   bind_function(env, "webkitgtk-move", fun);
@@ -253,16 +245,17 @@ emacs_module_init(struct emacs_runtime *ert)
   fun = env->make_function(env, 2, 2, webkitgtk_resize,
                            "resize", NULL);
   bind_function(env, "webkitgtk-resize", fun);
+  */
 
-  fun = env->make_function(env, 0, 0, webkitgtk_hide,
+  fun = env->make_function(env, 1, 1, webkitgtk_hide,
                            "hide", NULL);
   bind_function(env, "webkitgtk-hide", fun);
 
-  fun = env->make_function(env, 0, 0, webkitgtk_show,
+  fun = env->make_function(env, 1, 1, webkitgtk_show,
                            "show", NULL);
   bind_function(env, "webkitgtk-show", fun);
 
-  fun = env->make_function(env, 1, 1, webkitgtk_load_uri,
+  fun = env->make_function(env, 2, 2, webkitgtk_load_uri,
                            "load uri", NULL);
   bind_function(env, "webkitgtk-load-uri", fun);
 
