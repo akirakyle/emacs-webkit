@@ -11,10 +11,11 @@
 (declare-function webkitgtk-load-uri "webkitgtk-module")
 (declare-function webkitgtk-new "webkitgtk-module")
 (declare-function webkitgtk-destroy "webkitgtk-module")
-;;(declare-function webkitgtk-move "webkitgtk-module")
 (declare-function webkitgtk-resize "webkitgtk-module")
 (declare-function webkitgtk-hide "webkitgtk-module")
 (declare-function webkitgtk-show "webkitgtk-module")
+(declare-function webkitgtk-focus "webkitgtk-module")
+(declare-function webkitgtk-unfocus "webkitgtk-module")
 
 (defun fake-module-reload (module)
   (interactive "Reload Module file: ")
@@ -24,30 +25,9 @@
     (module-load tmpfile)))
 
 (fake-module-reload (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so"))
-
 ;;(add-to-list 'load-path (expand-file-name "~/git/emacs-webkitgtk"))
 ;;(module-load (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so))
 ;;(require 'webkitgtk-module)
-
-;;(defun webkitgtk-adjust-size (window)
-;;(defun webkitgtk-adjust-size (window)
-;;  "Adjust webkitgtk size for WINDOW
-;;
-;;Called from buffer-local window-size-change-functions so WINDOW's
-;;buffer's major must must be webkitgtk-mode"
-;;  (message "adjusting size...")
-;;  (print window)
-;;  (with-current-buffer (window-buffer window)
-;;    (print (window-buffer window))
-;;    (if (eq major-mode 'webkitgtk-mode)
-;;        (pcase-let ((`(,left ,top ,right ,bottom) (window-inside-pixel-edges window)))
-;;          (when webkitgtk-hidden
-;;            (setq-local webkitgtk-hidden nil)
-;;            (webkitgtk-show))
-;;          (webkitgtk-move left top)
-;;          (webkitgtk-resize (- right left) (- bottom top)))
-;;      (setq-local webkitgtk-hidden t)
-;;      (webkitgtk-hide))))
 
 (defun webkitgtk-adjust-size (frame)
   "Adjust webkitgtk size for window in FRAME"
@@ -63,14 +43,31 @@
               (pcase-let ((`(,left ,top ,right ,bottom) (window-inside-pixel-edges
                                                          (car windows))))
                 (webkitgtk-show (car id-buffer))
-                ;;(webkitgtk-move left top)
-                ;;(webkitgtk-resize (- right left) (- bottom top)))
+                (when (eq (frame-selected-window frame) (car windows))
+                  (webkitgtk-focus (car id-buffer)))
                 (webkitgtk-resize (car id-buffer)
                                   left top (- right left) (- bottom top)))
               (dolist (window (cdr windows))
                 (switch-to-prev-buffer window)))))
       (webkitgtk-hide (car id-buffer))
+      (webkitgtk-unfocus (car id-buffer))
       (setq webkitgtk--id-buffer-alist (delq id-buffer webkitgtk--id-buffer-alist)))))
+
+(defun webkitgtk-change-focus (frame)
+  "Change webkitgtk size for window in FRAME"
+  (message "changing focus...")
+  (print webkitgtk--focused)
+  (let ((buffer (window-buffer (frame-selected-window frame))))
+    (print buffer)
+    (with-current-buffer buffer
+      (if (eq major-mode 'webkitgtk-mode)
+          (let ((id (car (rassoc buffer webkitgtk--id-buffer-alist))))
+            (print id)
+            (webkitgtk-focus id)
+            (setq webkitgtk--focused id))
+        (when webkitgtk--focused
+          (webkitgtk-unfocus webkitgtk--focused)
+          (setq webkitgtk--focused nil))))))
 
 (require 'browse-url)
 
@@ -93,15 +90,17 @@ be set to BUFFER-NAME, otherwise it will be `webkitgtk'"
       (let ((id (webkitgtk-new)))
         (print id)
         (push (cons id buffer) webkitgtk--id-buffer-alist)
-        (webkitgtk-load-uri id url)
-        ))))
+        (webkitgtk-load-uri id url)))
+      (switch-to-buffer buffer)))
 
 (define-derived-mode webkitgtk-mode
   special-mode "webkitgtk" "webkitgtk view mode."
   (setq buffer-read-only t))
 
 (setq webkitgtk--id-buffer-alist nil)
+(setq webkitgtk--focused nil)
 (add-hook 'window-size-change-functions #'webkitgtk-adjust-size)
+(add-hook 'window-selection-change-functions #'webkitgtk-change-focus)
 
 (provide 'webkitgtk)
 ;;; webkitgtk.el ends here
