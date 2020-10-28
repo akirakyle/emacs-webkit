@@ -156,6 +156,24 @@ webkitgtk_destroy(void *ptr)
   free(c);
 }
 
+gboolean
+key_press_event(GtkWidget *w, GdkEvent *e, Client *c)
+{
+  printf("key_press_event: %p\n", c);
+  switch (e->type) {
+  case GDK_KEY_PRESS:
+    printf("key.keyval = %d\n", e->key.keyval);
+    if (e->key.keyval == GDK_KEY_Escape && e->key.state == 0)
+      {
+        gtk_widget_grab_focus(GTK_WIDGET(fixed));
+        return TRUE;
+      }
+  default:
+    break;
+  }
+  return FALSE;
+}
+
 static emacs_value
 webkitgtk_new(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
@@ -170,8 +188,16 @@ webkitgtk_new(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   c->view = WEBKIT_WEB_VIEW(webkit_web_view_new());
   gtk_fixed_put(fixed, GTK_WIDGET(c->view), 0, 0);
   gtk_widget_show_all(GTK_WIDGET(c->view));
+  /*
+  printf("can focus %d\n", gtk_widget_get_can_focus(GTK_WIDGET(c->view)));
+  gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
+  printf("can focus %d\n", gtk_widget_get_can_focus(GTK_WIDGET(c->view)));
+  printf("has window %d\n", gtk_widget_get_has_window(GTK_WIDGET(c->view)));
+  */
   //gtk_widget_set_focus_on_click (GTK_WIDGET(c->view), FALSE);
   //g_signal_connect(c->view, "close", G_CALLBACK(close_web_view_cb), main_window);
+  g_signal_connect(G_OBJECT(c->view), "key-press-event",
+                   G_CALLBACK(key_press_event), c);
 
   return env->make_user_ptr(env, webkitgtk_destroy, (void *)c);
 }
@@ -203,25 +229,25 @@ emacs_module_init(struct emacs_runtime *ert)
   Qnil = env->make_global_ref(env, env->intern(env, "nil"));
   emacs_value fun;
   fun = env->make_function(env, 0, 0, webkitgtk_new, "", NULL);
-  bind_function(env, "webkitgtk-new", fun);
+  bind_function(env, "webkitgtk--new", fun);
 
   fun = env->make_function(env, 5, 5, webkitgtk_resize, "", NULL);
-  bind_function(env, "webkitgtk-resize", fun);
+  bind_function(env, "webkitgtk--resize", fun);
 
   fun = env->make_function(env, 1, 1, webkitgtk_hide, "", NULL);
-  bind_function(env, "webkitgtk-hide", fun);
+  bind_function(env, "webkitgtk--hide", fun);
 
   fun = env->make_function(env, 1, 1, webkitgtk_show, "", NULL);
-  bind_function(env, "webkitgtk-show", fun);
+  bind_function(env, "webkitgtk--show", fun);
 
   fun = env->make_function(env, 1, 1, webkitgtk_focus, "", NULL);
-  bind_function(env, "webkitgtk-focus", fun);
+  bind_function(env, "webkitgtk--focus", fun);
 
   fun = env->make_function(env, 1, 1, webkitgtk_unfocus, "", NULL);
-  bind_function(env, "webkitgtk-unfocus", fun);
+  bind_function(env, "webkitgtk--unfocus", fun);
 
   fun = env->make_function(env, 2, 2, webkitgtk_load_uri, "", NULL);
-  bind_function(env, "webkitgtk-load-uri", fun);
+  bind_function(env, "webkitgtk--load-uri", fun);
 
   emacs_value Qfeat = env->intern(env, "webkitgtk-module");
   emacs_value Qprovide = env->intern(env, "provide");
