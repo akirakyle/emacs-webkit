@@ -1,5 +1,6 @@
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
+#include <assert.h>
 
 #include "emacs-module.h"
 
@@ -12,19 +13,8 @@ static emacs_value Qt;
 typedef struct Client {
   GtkWidget *win;
   WebKitWebView *view;
-  WebKitWebInspector *inspector;
-  WebKitFindController *finder;
-  WebKitHitTestResult *mousepos;
-  GTlsCertificate *cert, *failedcert;
-  GTlsCertificateFlags tlserr;
-  unsigned long pageid;
-  int progress, fullscreen, https, insecure, errorpage;
-  const char *title, *overtitle, *targeturi;
-  const char *needle;
-  //int x, y, w, h;
 } Client;
 
-//static Client *c;
 static GtkFixed *fixed;
 
 /*
@@ -69,6 +59,133 @@ GtkFixed *find_fixed_widget(GList *widgets)
         return find_fixed_widget(gtk_container_get_children(GTK_CONTAINER(l->data)));
     }
   return NULL;
+}
+
+static bool
+copy_string_contents (emacs_env *env, emacs_value value,
+                      char **buffer, size_t *size)
+{
+  ptrdiff_t buffer_size;
+  if (!env->copy_string_contents (env, value, NULL, &buffer_size))
+    return false;
+  assert (env->non_local_exit_check (env) == emacs_funcall_exit_return);
+  assert (buffer_size > 0);
+  *buffer = malloc ((size_t) buffer_size);
+  if (*buffer == NULL)
+    {
+      env->non_local_exit_signal (env, env->intern (env, "memory-full"),
+                                  env->intern (env, "nil"));
+      return false;
+    }
+  ptrdiff_t old_buffer_size = buffer_size;
+  if (!env->copy_string_contents (env, value, *buffer, &buffer_size))
+    {
+      free (*buffer);
+      *buffer = NULL;
+      return false;
+    }
+  assert (env->non_local_exit_check (env) == emacs_funcall_exit_return);
+  assert (buffer_size == old_buffer_size);
+  *size = (size_t) (buffer_size - 1);
+  return true;
+}
+
+static void
+webkitgtk_js_finished(GObject *web_view, GAsyncResult *result, gpointer arg)
+{
+  GError *error = NULL;
+
+  WebKitJavascriptResult *js_result =
+    webkit_web_view_run_javascript_finish(WEBKIT_WEB_VIEW(web_view),
+                                          result, &error);
+
+  if (!js_result)
+    {
+      g_warning ("Error running javascript: %s", error->message);
+      g_error_free (error);
+      return;
+    }
+
+  JSCValue *value = webkit_javascript_result_get_js_value (js_result);
+  if (jsc_value_is_string(value)) {
+    gchar *str_value = jsc_value_to_string(value);
+    JSCException *exception = jsc_context_get_exception(jsc_value_get_context(value));
+    if (exception)
+      g_warning ("Error running javascript: %s", jsc_exception_get_message (exception));
+    else
+      g_print ("Script result: %s\n", str_value);
+    g_free (str_value);
+  } else {
+    g_warning ("Error running javascript: unexpected return value");
+  }
+
+  webkit_javascript_result_unref (js_result);
+}
+
+static emacs_value
+webkitgtk_execute_js(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  intptr_t idx = 0;
+  size_t size;
+  char *script;
+  if (copy_string_contents(env, args[1], &script, &size))
+    webkit_web_view_run_javascript (c->view, script, NULL,
+                                    webkitgtk_js_finished, (gpointer) idx);
+  printf("executing %p script: %s\n", c, script);
+  free(script);
+  return Qnil;
+}
+
+static emacs_value
+webkitgtk_set_zoom(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  double zoom = env->extract_float(env, args[1]);
+  printf("zoom %p to: %f\n", c, zoom);
+  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+    webkit_web_view_set_zoom_level(c->view, (gdouble)zoom);
+  return Qnil;
+}
+
+static emacs_value
+webkitgtk_get_zoom(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+    {
+      gdouble zoom = webkit_web_view_get_zoom_level(c->view);
+      printf("zoom %p to: %f\n", c, zoom);
+      return env->make_float(env, (double)zoom);
+    }
+  return Qnil;
+}
+
+static emacs_value
+webkitgtk_forward(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+    webkit_web_view_go_forward(c->view);
+  return Qnil;
+}
+
+static emacs_value
+webkitgtk_back(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+    webkit_web_view_go_back(c->view);
+  return Qnil;
+}
+
+static emacs_value
+webkitgtk_reload(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+    webkit_web_view_reload(c->view);
+  return Qnil;
 }
 
 static emacs_value
@@ -246,8 +363,26 @@ emacs_module_init(struct emacs_runtime *ert)
   fun = env->make_function(env, 1, 1, webkitgtk_unfocus, "", NULL);
   bind_function(env, "webkitgtk--unfocus", fun);
 
+  fun = env->make_function(env, 1, 1, webkitgtk_forward, "", NULL);
+  bind_function(env, "webkitgtk--forward", fun);
+
+  fun = env->make_function(env, 1, 1, webkitgtk_back, "", NULL);
+  bind_function(env, "webkitgtk--back", fun);
+
+  fun = env->make_function(env, 1, 1, webkitgtk_reload, "", NULL);
+  bind_function(env, "webkitgtk--reload", fun);
+
   fun = env->make_function(env, 2, 2, webkitgtk_load_uri, "", NULL);
   bind_function(env, "webkitgtk--load-uri", fun);
+
+  fun = env->make_function(env, 2, 2, webkitgtk_execute_js, "", NULL);
+  bind_function(env, "webkitgtk--execute-js", fun);
+
+  fun = env->make_function(env, 2, 2, webkitgtk_set_zoom, "", NULL);
+  bind_function(env, "webkitgtk--set-zoom", fun);
+
+  fun = env->make_function(env, 1, 1, webkitgtk_get_zoom, "", NULL);
+  bind_function(env, "webkitgtk--get-zoom", fun);
 
   emacs_value Qfeat = env->intern(env, "webkitgtk-module");
   emacs_value Qprovide = env->intern(env, "provide");
