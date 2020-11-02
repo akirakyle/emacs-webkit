@@ -5,17 +5,6 @@
 ;; blah
 
 ;;; Code:
-;;(webkitgtk--execute-js
-;; (car (car webkitgtk--id-buffer-alist))
-;; "\"hi\""
-;; (make-pipe-process :name "webkitgtk" :buffer 
-;;                    (cdr (car webkitgtk--id-buffer-alist))))
-;;
-;;(with-current-buffer (cdr (car webkitgtk--id-buffer-alist))
-;;  (buffer-string))
-;;
-;;(setq my-pipe (get-buffer-process (cdr (car webkitgtk--id-buffer-alist))))
-
 
 ;; Don't require dynamic module at byte compile time.
 (declare-function webkitgtk--load-uri "webkitgtk-module")
@@ -41,13 +30,13 @@
     (module-load tmpfile)))
 
 (fake-module-reload (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so"))
+;;(module-load (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so"))
 ;;(add-to-list 'load-path (expand-file-name "~/git/emacs-webkitgtk"))
-;;(module-load (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so))
 ;;(require 'webkitgtk-module)
 
 (defvar webkitgtk-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "g" 'webkitgtk-goto-url)
+    (define-key map "g" 'webkitgtk-browse-url)
     (define-key map "f" 'webkitgtk-forward)
     (define-key map "b" 'webkitgtk-back)
     (define-key map "r" 'webkitgtk-reload)
@@ -216,27 +205,30 @@ If N is omitted or nil, scroll backwards by one char."
 
 (require 'browse-url)
 
-(defun webkitgtk-goto-url (url &optional new-session)
-  "Goto URL with webkitgtk."
+(defun webkitgtk-browse-url (url &optional new-session)
+  "Goto URL with webkitgtk using browse-url.
+
+NEW-SESSION specifies whether to create a new webkitgtk session or use the 
+current session."
   (interactive (progn (browse-url-interactive-arg "URL: ")))
-  (when (eq major-mode 'webkitgtk-mode)
-    (webkitgtk--load-uri
-     (car (rassoc (current-buffer) webkitgtk--id-buffer-alist)) url)))
+  (when (or new-session (not (webkitgtk--current-id)))
+    (webkitgtk-new))
+  (webkitgtk--load-uri (webkitgtk--current-id) url))
   
-(defun webkitgtk (url &optional buffer-name)
+(defun webkitgtk-new (&optional buffer-name)
   "Create a new webkitgtk with URL
 
 If called with an argument BUFFER-NAME, the name of the new buffer will
 be set to BUFFER-NAME, otherwise it will be `webkitgtk'"
-  (interactive (progn (browse-url-interactive-arg "URL: ")))
-  (let ((buffer (generate-new-buffer (or buffer-name "webkitgtk"))))
+  (unless (boundp 'gtk-version-string)
+    (user-error "Your Emacs was not compiled with gtk"))
+  (let ((buffer (generate-new-buffer (or buffer-name "*webkitgtk*"))))
     (with-current-buffer buffer
       (webkitgtk-mode)
-      (let ((id (webkitgtk--new)))
-        (print id)
-        (push (cons id buffer) webkitgtk--id-buffer-alist)
-        (webkitgtk--load-uri id url)))
-      (switch-to-buffer buffer)))
+      (let ((id (webkitgtk--new (make-pipe-process
+                                 :name "webkitgtk" :buffer buffer))))
+        (push (cons id buffer) webkitgtk--id-buffer-alist)))
+    (switch-to-buffer buffer)))
 
 (define-derived-mode webkitgtk-mode
   special-mode "webkitgtk" "webkitgtk view mode."
@@ -250,3 +242,16 @@ be set to BUFFER-NAME, otherwise it will be `webkitgtk'"
 
 (provide 'webkitgtk)
 ;;; webkitgtk.el ends here
+
+;;(webkitgtk--execute-js
+;; (car (car webkitgtk--id-buffer-alist))
+;; "\"hi\"")
+
+;;(webkitgtk--execute-js
+;; (car (car webkitgtk--id-buffer-alist))
+;; "\"hi\"" "hi-cmd")
+;;
+;;(with-current-buffer (cdr (car webkitgtk--id-buffer-alist))
+;;  (buffer-string))
+;;
+;;(setq my-pipe (get-buffer-process (cdr (car webkitgtk--id-buffer-alist))))

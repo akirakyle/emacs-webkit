@@ -14,19 +14,15 @@ static emacs_value Qt;
 typedef struct Client {
   GtkWidget *win;
   WebKitWebView *view;
+  int fd;
 } Client;
 
+typedef struct Callback {
+  Client *c;
+  char *id;
+} Callback;
+
 static GtkFixed *fixed;
-
-/*
-static gboolean closeWebViewCb(WebKitWebView* webView, GtkWidget* window);
-
-static gboolean closeWebViewCb(WebKitWebView* webView, GtkWidget* window)
-{
-    gtk_widget_destroy(window);
-    return TRUE;
-}
-*/
 
 void print_widgets(GList *widgets)
 {
@@ -91,34 +87,37 @@ copy_string_contents (emacs_env *env, emacs_value value,
   return true;
 }
 
-ssize_t rio_writen(int fd, void *usrbuf, size_t n) 
+ssize_t
+rio_writen (int fd, void *usrbuf, size_t n) 
 {
-    size_t nleft = n;
-    ssize_t nwritten;
-    char *bufp = usrbuf;
+  size_t nleft = n;
+  ssize_t nwritten;
+  char *bufp = usrbuf;
 
-    while (nleft > 0) {
-	if ((nwritten = write(fd, bufp, nleft)) <= 0) {
-	    if (errno == EINTR)  /* Interrupted by sig handler return */
-		nwritten = 0;    /* and call write() again */
-	    else
-		return -1;       /* errno set by write() */
-	}
-	nleft -= nwritten;
-	bufp += nwritten;
+  while (nleft > 0) {
+    if ((nwritten = write (fd, bufp, nleft)) <= 0) {
+      if (errno == EINTR)  /* Interrupted by sig handler return */
+        nwritten = 0;    /* and call write() again */
+      else
+        return -1;       /* errno set by write() */
     }
-    return n;
+    nleft -= nwritten;
+    bufp += nwritten;
+  }
+  return n;
 }
 
 static void
-webkitgtk_js_finished(GObject *web_view, GAsyncResult *result, gpointer arg)
+webkitgtk_js_finished (GObject *web_view, GAsyncResult *result, gpointer arg)
 {
   GError *error = NULL;
-  int fd = (ptrdiff_t) arg;
+  Callback *cb = (Callback *) arg;
+
+  printf ("js_finished %p with id: %s\n", cb->c, cb->id);
 
   WebKitJavascriptResult *js_result =
-    webkit_web_view_run_javascript_finish(WEBKIT_WEB_VIEW(web_view),
-                                          result, &error);
+    webkit_web_view_run_javascript_finish (WEBKIT_WEB_VIEW(web_view),
+                                           result, &error);
 
   if (!js_result)
     {
@@ -128,50 +127,55 @@ webkitgtk_js_finished(GObject *web_view, GAsyncResult *result, gpointer arg)
     }
 
   JSCValue *value = webkit_javascript_result_get_js_value (js_result);
-  if (!jsc_value_is_string(value))
-    {
-      g_warning ("Error running javascript: return value was not a string");
-      webkit_javascript_result_unref (js_result);
-      return;
-    }
-
-  gchar *str_value = jsc_value_to_string(value);
-  JSCException *exception = jsc_context_get_exception(jsc_value_get_context(value));
+  gchar *json = jsc_value_to_json (value, 1);
+  JSCException *exception =
+    jsc_context_get_exception (jsc_value_get_context (value));
   if (exception)
     {
-    g_warning ("Error running javascript: %s", jsc_exception_get_message (exception));
-    webkit_javascript_result_unref (js_result);
-    return;
+      g_warning ("Error running javascript: %s",
+                 jsc_exception_get_message (exception));
     }
+  else
+    {
+      if (rio_writen (cb->c->fd, cb->id, strlen (cb->id)+1) < 0)
+        g_warning ("Error writing cb->id to fd: %d", cb->c->fd);
+      if (json == NULL)
+        json = "null";
+      if (rio_writen (cb->c->fd, json, strlen (json)+1) < 0)
+        g_warning ("Error writing javascript result to fd: %d", cb->c->fd);
+    }
+  printf ("Script result: %s\n", json);
 
-  printf("Script result: %s\n", str_value);
-  if (rio_writen(fd, str_value, strlen(str_value)+1) < 0)
-    g_warning ("Error writing javascript result to fd: %d", fd);
-
-  g_free (str_value);
+  g_free (json);
+  free (cb->id);
+  free (cb);
   webkit_javascript_result_unref (js_result);
 }
 
 static emacs_value
-webkitgtk_execute_js(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_execute_js (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  Client *c = (Client *)env->get_user_ptr (env, args[0]);
   size_t size;
   char *script = NULL;
-  if (copy_string_contents(env, args[1], &script, &size))
+  char *id = NULL;
+  if (copy_string_contents (env, args[1], &script, &size))
     {
-      if (n == 3)
+      if ((n == 3) && copy_string_contents (env, args[2], &id, &size))
         {
-          ptrdiff_t fd = env->open_channel(env, args[2]);
+          Callback *cb = malloc (sizeof (Callback));
+          cb->c = c;
+          cb->id = id;
           webkit_web_view_run_javascript(c->view, script, NULL,
-                                         webkitgtk_js_finished, (gpointer)fd);
+                                         webkitgtk_js_finished, (gpointer) cb);
         }
-      else {
-        webkit_web_view_run_javascript(c->view, script, NULL, NULL, NULL);
-      }
+      else
+        {
+          webkit_web_view_run_javascript(c->view, script, NULL, NULL, NULL);
+        }
     }
-  printf("executing %p script: %s\n", c, script);
-  free(script);
+  printf ("executing %p script: %s id: %s\n", c, script, id);
+  free (script);
   return Qnil;
 }
 
@@ -231,13 +235,13 @@ webkitgtk_load_uri(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
   Client *c = (Client *)env->get_user_ptr(env, args[0]);
 
-  ptrdiff_t MAX_LEN = 256;
-  char buf[MAX_LEN];
-  env->copy_string_contents (env, args[1], buf, &MAX_LEN);
-  printf("loading %p uri: %s\n", c, buf);
+  size_t size;
+  char *uri = NULL;
+  if (copy_string_contents (env, args[1], &uri, &size))
+    webkit_web_view_load_uri(c->view, uri);
 
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    webkit_web_view_load_uri(c->view, buf);
+  printf("loading %p uri: %s\n", c, uri);
+  free (uri);
   return Qnil;
 }
 
@@ -312,9 +316,9 @@ webkitgtk_destroy(void *ptr)
 }
 
 gboolean
-key_press_event(GtkWidget *w, GdkEvent *e, Client *c)
+key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
 {
-  printf("key_press_event: %p\n", c);
+  printf ("key_press_event: %p\n", c);
   switch (e->type) {
   case GDK_KEY_PRESS:
     printf("key.keyval = %d\n", e->key.keyval);
@@ -330,31 +334,26 @@ key_press_event(GtkWidget *w, GdkEvent *e, Client *c)
 }
 
 static emacs_value
-webkitgtk_new(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
   Client *c;
-  if (!(c = calloc(1, sizeof(Client))))
+  if (!(c = calloc (1, sizeof (Client))))
     {
-      printf("Cannot malloc!\n");
+      printf ("Cannot malloc!\n");
       return Qnil;
     }
+  c->fd = env->open_channel (env, args[0]);
 
   //gtk_init_check(&argc, &argv);
-  c->view = WEBKIT_WEB_VIEW(webkit_web_view_new());
-  gtk_fixed_put(fixed, GTK_WIDGET(c->view), 0, 0);
-  gtk_widget_show_all(GTK_WIDGET(c->view));
-  /*
-  printf("can focus %d\n", gtk_widget_get_can_focus(GTK_WIDGET(c->view)));
-  gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
-  printf("can focus %d\n", gtk_widget_get_can_focus(GTK_WIDGET(c->view)));
-  printf("has window %d\n", gtk_widget_get_has_window(GTK_WIDGET(c->view)));
-  */
-  //gtk_widget_set_focus_on_click (GTK_WIDGET(c->view), FALSE);
-  //g_signal_connect(c->view, "close", G_CALLBACK(close_web_view_cb), main_window);
-  g_signal_connect(G_OBJECT(c->view), "key-press-event",
-                   G_CALLBACK(key_press_event), c);
+  c->view = WEBKIT_WEB_VIEW (webkit_web_view_new ());
+  gtk_fixed_put (fixed, GTK_WIDGET (c->view), 0, 0);
+  gtk_widget_show_all (GTK_WIDGET (c->view));
+  //gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
+  gtk_widget_set_focus_on_click (GTK_WIDGET (c->view), FALSE);
+  g_signal_connect (G_OBJECT (c->view), "key-press-event",
+                    G_CALLBACK (key_press_event), c);
 
-  return env->make_user_ptr(env, webkitgtk_destroy, (void *)c);
+  return env->make_user_ptr (env, webkitgtk_destroy, (void *) c);
 }
 
 void bind_function(emacs_env *env, const char *name, emacs_value Sfun)
@@ -383,7 +382,7 @@ emacs_module_init(struct emacs_runtime *ert)
   Qt = env->make_global_ref(env, env->intern(env, "t"));
   Qnil = env->make_global_ref(env, env->intern(env, "nil"));
   emacs_value fun;
-  fun = env->make_function(env, 0, 0, webkitgtk_new, "", NULL);
+  fun = env->make_function(env, 1, 1, webkitgtk_new, "", NULL);
   bind_function(env, "webkitgtk--new", fun);
 
   fun = env->make_function(env, 5, 5, webkitgtk_resize, "", NULL);
