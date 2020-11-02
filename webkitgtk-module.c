@@ -1,6 +1,7 @@
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
 #include <assert.h>
+#include <errno.h>
 
 #include "emacs-module.h"
 
@@ -90,10 +91,30 @@ copy_string_contents (emacs_env *env, emacs_value value,
   return true;
 }
 
+ssize_t rio_writen(int fd, void *usrbuf, size_t n) 
+{
+    size_t nleft = n;
+    ssize_t nwritten;
+    char *bufp = usrbuf;
+
+    while (nleft > 0) {
+	if ((nwritten = write(fd, bufp, nleft)) <= 0) {
+	    if (errno == EINTR)  /* Interrupted by sig handler return */
+		nwritten = 0;    /* and call write() again */
+	    else
+		return -1;       /* errno set by write() */
+	}
+	nleft -= nwritten;
+	bufp += nwritten;
+    }
+    return n;
+}
+
 static void
 webkitgtk_js_finished(GObject *web_view, GAsyncResult *result, gpointer arg)
 {
   GError *error = NULL;
+  int fd = (ptrdiff_t) arg;
 
   WebKitJavascriptResult *js_result =
     webkit_web_view_run_javascript_finish(WEBKIT_WEB_VIEW(web_view),
@@ -107,18 +128,27 @@ webkitgtk_js_finished(GObject *web_view, GAsyncResult *result, gpointer arg)
     }
 
   JSCValue *value = webkit_javascript_result_get_js_value (js_result);
-  if (jsc_value_is_string(value)) {
-    gchar *str_value = jsc_value_to_string(value);
-    JSCException *exception = jsc_context_get_exception(jsc_value_get_context(value));
-    if (exception)
-      g_warning ("Error running javascript: %s", jsc_exception_get_message (exception));
-    else
-      g_print ("Script result: %s\n", str_value);
-    g_free (str_value);
-  } else {
-    g_warning ("Error running javascript: unexpected return value");
-  }
+  if (!jsc_value_is_string(value))
+    {
+      g_warning ("Error running javascript: return value was not a string");
+      webkit_javascript_result_unref (js_result);
+      return;
+    }
 
+  gchar *str_value = jsc_value_to_string(value);
+  JSCException *exception = jsc_context_get_exception(jsc_value_get_context(value));
+  if (exception)
+    {
+    g_warning ("Error running javascript: %s", jsc_exception_get_message (exception));
+    webkit_javascript_result_unref (js_result);
+    return;
+    }
+
+  printf("Script result: %s\n", str_value);
+  if (rio_writen(fd, str_value, strlen(str_value)+1) < 0)
+    g_warning ("Error writing javascript result to fd: %d", fd);
+
+  g_free (str_value);
   webkit_javascript_result_unref (js_result);
 }
 
@@ -126,12 +156,20 @@ static emacs_value
 webkitgtk_execute_js(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
   Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  intptr_t idx = 0;
   size_t size;
-  char *script;
+  char *script = NULL;
   if (copy_string_contents(env, args[1], &script, &size))
-    webkit_web_view_run_javascript (c->view, script, NULL,
-                                    webkitgtk_js_finished, (gpointer) idx);
+    {
+      if (n == 3)
+        {
+          ptrdiff_t fd = env->open_channel(env, args[2]);
+          webkit_web_view_run_javascript(c->view, script, NULL,
+                                         webkitgtk_js_finished, (gpointer)fd);
+        }
+      else {
+        webkit_web_view_run_javascript(c->view, script, NULL, NULL, NULL);
+      }
+    }
   printf("executing %p script: %s\n", c, script);
   free(script);
   return Qnil;
@@ -375,7 +413,7 @@ emacs_module_init(struct emacs_runtime *ert)
   fun = env->make_function(env, 2, 2, webkitgtk_load_uri, "", NULL);
   bind_function(env, "webkitgtk--load-uri", fun);
 
-  fun = env->make_function(env, 2, 2, webkitgtk_execute_js, "", NULL);
+  fun = env->make_function(env, 2, 3, webkitgtk_execute_js, "", NULL);
   bind_function(env, "webkitgtk--execute-js", fun);
 
   fun = env->make_function(env, 2, 2, webkitgtk_set_zoom, "", NULL);

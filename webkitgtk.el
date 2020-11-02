@@ -5,6 +5,16 @@
 ;; blah
 
 ;;; Code:
+;;(webkitgtk--execute-js
+;; (car (car webkitgtk--id-buffer-alist))
+;; "\"hi\""
+;; (make-pipe-process :name "webkitgtk" :buffer 
+;;                    (cdr (car webkitgtk--id-buffer-alist))))
+;;
+;;(with-current-buffer (cdr (car webkitgtk--id-buffer-alist))
+;;  (buffer-string))
+;;
+;;(setq my-pipe (get-buffer-process (cdr (car webkitgtk--id-buffer-alist))))
 
 
 ;; Don't require dynamic module at byte compile time.
@@ -188,43 +198,21 @@ If N is omitted or nil, scroll backwards by one char."
 (defun webkitgtk--adjust-size (frame)
   "Adjust webkitgtk size for window in FRAME"
   ;;(message "adjusting size...")
-  ;;(print frame)
   (dolist (id-buffer webkitgtk--id-buffer-alist)
     (if (buffer-live-p (cdr id-buffer))
         (with-current-buffer (cdr id-buffer) 
           (let* ((windows (get-buffer-window-list (current-buffer) 'nomini frame)))
-            ;;(print windows)
             (if (not windows)
                 (webkitgtk--hide (car id-buffer))
               (pcase-let ((`(,left ,top ,right ,bottom) (window-inside-pixel-edges
                                                          (car windows))))
                 (webkitgtk--show (car id-buffer))
-                ;;(when (eq (frame-selected-window frame) (car windows))
-                ;;  (webkitgtk--focus-wrapper (car id-buffer)))
                 (webkitgtk--resize (car id-buffer)
                                   left top (- right left) (- bottom top)))
               (dolist (window (cdr windows))
                 (switch-to-prev-buffer window)))))
       (webkitgtk--hide (car id-buffer))
-      ;;(webkitgtk--unfocus-wrapper (car id-buffer))
       (setq webkitgtk--id-buffer-alist (delq id-buffer webkitgtk--id-buffer-alist)))))
-  ;;(webkitgtk--change-focus frame))
-
-;;(defun webkitgtk--change-focus (frame)
-;;  "Change webkitgtk size for window in FRAME"
-;;  ;;(message "changing focus...")
-;;  ;;(print webkitgtk--focused)
-;;  (let ((buffer (window-buffer (frame-selected-window frame))))
-;;    ;;(print buffer)
-;;    (with-current-buffer buffer
-;;      (if (eq major-mode 'webkitgtk-mode)
-;;          (let ((id (car (rassoc buffer webkitgtk--id-buffer-alist))))
-;;            ;;(print id)
-;;            (webkitgtk--focus id)
-;;            (setq webkitgtk--focused id))
-;;        (when webkitgtk--focused
-;;          (webkitgtk--unfocus webkitgtk--focused)
-;;          (setq webkitgtk--focused nil))))))
 
 (require 'browse-url)
 
@@ -244,13 +232,6 @@ be set to BUFFER-NAME, otherwise it will be `webkitgtk'"
   (let ((buffer (generate-new-buffer (or buffer-name "webkitgtk"))))
     (with-current-buffer buffer
       (webkitgtk-mode)
-      ;;(setq-local webkitgtk-hidden nil)
-      ;;(setq-local window-buffer-change-functions (list 'webkitgtk-adjust-size))
-      ;;(setq-local window-size-change-functions (list 'webkitgtk-adjust-size))
-      ;;(setq-local window-state-change-functions (list 'webkitgtk-adjust-size))
-      ;;(add-hook 'kill-buffer-hook #'webkitgtk-destroy nil t)
-      ;;(pcase-let ((`(,left ,top ,right ,bottom) (window-inside-pixel-edges)))
-        ;;(webkitgtk-new-view left top (- right left) (- bottom top))
       (let ((id (webkitgtk--new)))
         (print id)
         (push (cons id buffer) webkitgtk--id-buffer-alist)
@@ -264,10 +245,8 @@ be set to BUFFER-NAME, otherwise it will be `webkitgtk'"
 (setq webkitgtk--id-buffer-alist nil)
 ;;(setq webkitgtk--focused nil)
 (add-hook 'window-size-change-functions #'webkitgtk--adjust-size)
-;;(add-hook 'window-selection-change-functions #'webkitgtk--change-focus)
 
 ;;(remove-hook 'window-size-change-functions #'webkitgtk--adjust-size)
-;;(remove-hook 'window-selection-change-functions #'webkitgtk--change-focus)
 
 (provide 'webkitgtk)
 ;;; webkitgtk.el ends here
