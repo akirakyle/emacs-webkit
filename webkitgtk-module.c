@@ -1,5 +1,8 @@
+#define _POSIX_SOURCE 1
+
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
+#include <signal.h>
 #include <assert.h>
 #include <errno.h>
 
@@ -24,7 +27,8 @@ typedef struct Callback {
 
 static GtkFixed *fixed;
 
-void print_widgets(GList *widgets)
+static void
+print_widgets(GList *widgets)
 {
   for (GList *l = widgets; l != NULL; l = l->next)
     {
@@ -46,7 +50,8 @@ void print_widgets(GList *widgets)
     }
 }
 
-GtkFixed *find_fixed_widget(GList *widgets)
+static GtkFixed *
+find_fixed_widget(GList *widgets)
 {
   for (GList *l = widgets; l != NULL; l = l->next)
     {
@@ -87,7 +92,7 @@ copy_string_contents (emacs_env *env, emacs_value value,
   return true;
 }
 
-ssize_t
+static ssize_t
 rio_writen (int fd, void *usrbuf, size_t n) 
 {
   size_t nleft = n;
@@ -105,6 +110,16 @@ rio_writen (int fd, void *usrbuf, size_t n)
     bufp += nwritten;
   }
   return n;
+}
+
+
+static void
+send_to_lisp (Client *c, const char *id, const char *message)
+{
+  if (id == NULL || message == NULL
+      || rio_writen (c->fd, (void *)id, strlen (id)+1) < 0
+      || rio_writen (c->fd, (void *)message, strlen (message)+1) < 0)
+    g_warning ("Sending to fd: %d; id: %s; message: %s;", c->fd, id, message);
 }
 
 static void
@@ -131,19 +146,11 @@ webkitgtk_js_finished (GObject *web_view, GAsyncResult *result, gpointer arg)
   JSCException *exception =
     jsc_context_get_exception (jsc_value_get_context (value));
   if (exception)
-    {
-      g_warning ("Error running javascript: %s",
-                 jsc_exception_get_message (exception));
-    }
+    g_warning ("Error running javascript: %s",
+               jsc_exception_get_message (exception));
   else
-    {
-      if (rio_writen (cb->c->fd, cb->id, strlen (cb->id)+1) < 0)
-        g_warning ("Error writing cb->id to fd: %d", cb->c->fd);
-      if (json == NULL)
-        json = "null";
-      if (rio_writen (cb->c->fd, json, strlen (json)+1) < 0)
-        g_warning ("Error writing javascript result to fd: %d", cb->c->fd);
-    }
+    send_to_lisp (cb->c, cb->id, json == NULL ? "null" : json);
+
   printf ("Script result: %s\n", json);
 
   g_free (json);
@@ -303,20 +310,19 @@ webkitgtk_resize(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   return Qnil;
 }
 
-//static emacs_value webkitgtk_destroy(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
-void
-webkitgtk_destroy(void *ptr)
+static void
+webkitgtk_destroy (void *ptr)
 {
   printf("destroying %p\n", ptr);
-  //gtk_widget_destroy(GTK_WIDGET(c->view));
   Client *c = (Client *)ptr;
   gtk_container_remove(GTK_CONTAINER(fixed), GTK_WIDGET(c->view));
-
+  // not needed due to gobject ref count
+  // gtk_widget_destroy(GTK_WIDGET(c->view));
   free(c);
 }
 
-gboolean
-key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
+static gboolean
+webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
 {
   printf ("key_press_event: %p\n", c);
   switch (e->type) {
@@ -331,6 +337,15 @@ key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
     break;
   }
   return FALSE;
+}
+
+static void
+webview_notify_title(WebKitWebView *webview, GParamSpec *pspec, Client *c)
+{
+    const gchar *title = webkit_web_view_get_title(webview);
+
+    if (title != NULL)
+      send_to_lisp (c, "title", title);
 }
 
 static emacs_value
@@ -351,12 +366,23 @@ webkitgtk_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   //gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
   gtk_widget_set_focus_on_click (GTK_WIDGET (c->view), FALSE);
   g_signal_connect (G_OBJECT (c->view), "key-press-event",
-                    G_CALLBACK (key_press_event), c);
+                    G_CALLBACK (webview_key_press_event), c);
+  g_signal_connect (G_OBJECT (c->view), "notify::title",
+                    G_CALLBACK (webview_notify_title), c);
+
+  /* webkitgtk uses GSubprocess which sets sigaction causing emacs to not catch
+     SIGCHLD with it's usual handle setup in catch_child_signal().
+     This resets the SIGCHLD sigaction */
+  struct sigaction old_action;
+  sigaction (SIGCHLD, NULL, &old_action);
+  webkit_web_view_load_uri(c->view, "about:blank");
+  sigaction (SIGCHLD, &old_action, NULL);
 
   return env->make_user_ptr (env, webkitgtk_destroy, (void *) c);
 }
 
-void bind_function(emacs_env *env, const char *name, emacs_value Sfun)
+static void
+bind_function(emacs_env *env, const char *name, emacs_value Sfun)
 {
   emacs_value Qfset = env->intern(env, "fset");
   emacs_value Qsym = env->intern(env, name);

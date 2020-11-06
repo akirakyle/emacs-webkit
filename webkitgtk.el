@@ -1,8 +1,27 @@
 ;;; webkitgtk.el --- webkitgtk dynamic module -*- lexical-binding: t; -*-
 
-;;; Commentary:
+;; Copyright (C) 2020 Akira Kyle
 
-;; blah
+;; Author: Akira Kyle <ak@akirakyle.com>
+;; URL: https://github.com/
+;; Version: 0.1
+;; Package-Requires: ((emacs "28.1"))
+
+;; This file is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published
+;; by the Free Software Foundation; either version 3, or (at your
+;; option) any later version.
+;;
+;; This file is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; For a full copy of the GNU General Public License
+;; see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+;; webkitgtk dynamic module
 
 ;;; Code:
 
@@ -255,3 +274,4 @@ be set to BUFFER-NAME, otherwise it will be `webkitgtk'"
 ;;  (buffer-string))
 ;;
 ;;(setq my-pipe (get-buffer-process (cdr (car webkitgtk--id-buffer-alist))))
+;;(evil-collection-xwidget-setup)
