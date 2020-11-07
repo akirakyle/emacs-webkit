@@ -26,10 +26,7 @@
 ;;; Code:
 
 ;; Don't require dynamic module at byte compile time.
-(declare-function webkitgtk--load-uri "webkitgtk-module")
-(declare-function webkitgtk--execute-js "webkitgtk-module")
 (declare-function webkitgtk--new "webkitgtk-module")
-(declare-function webkitgtk--destroy "webkitgtk-module")
 (declare-function webkitgtk--resize "webkitgtk-module")
 (declare-function webkitgtk--hide "webkitgtk-module")
 (declare-function webkitgtk--show "webkitgtk-module")
@@ -40,6 +37,12 @@
 (declare-function webkitgtk--reload "webkitgtk-module")
 (declare-function webkitgtk--get-zoom "webkitgtk-module")
 (declare-function webkitgtk--set-zoom "webkitgtk-module")
+(declare-function webkitgtk--load-uri "webkitgtk-module")
+(declare-function webkitgtk--execute-js "webkitgtk-module")
+(declare-function webkitgtk--add-user-script "webkitgtk-module")
+(declare-function webkitgtk--remove-all-user-scripts "webkitgtk-module")
+(declare-function webkitgtk--register-script-message "webkitgtk-module")
+(declare-function webkitgtk--unregister-script-message "webkitgtk-module")
 
 (defun fake-module-reload (module)
   (interactive "Reload Module file: ")
@@ -254,24 +257,8 @@ be set to BUFFER-NAME, otherwise it will be `webkitgtk'"
   (setq buffer-read-only t))
 
 (setq webkitgtk--id-buffer-alist nil)
-;;(setq webkitgtk--focused nil)
 (add-hook 'window-size-change-functions #'webkitgtk--adjust-size)
-
 ;;(remove-hook 'window-size-change-functions #'webkitgtk--adjust-size)
 
 (provide 'webkitgtk)
 ;;; webkitgtk.el ends here
-
-;;(webkitgtk--execute-js
-;; (car (car webkitgtk--id-buffer-alist))
-;; "\"hi\"")
-
-;;(webkitgtk--execute-js
-;; (car (car webkitgtk--id-buffer-alist))
-;; "\"hi\"" "hi-cmd")
-;;
-;;(with-current-buffer (cdr (car webkitgtk--id-buffer-alist))
-;;  (buffer-string))
-;;
-;;(setq my-pipe (get-buffer-process (cdr (car webkitgtk--id-buffer-alist))))
-;;(evil-collection-xwidget-setup)
