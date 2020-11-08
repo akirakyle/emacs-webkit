@@ -184,7 +184,10 @@ webkitgtk_focus(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   Client *c = (Client *)env->get_user_ptr(env, args[0]);
   printf("focusing %p\n", c);
   if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    gtk_widget_grab_focus(GTK_WIDGET(c->view));
+    {
+      gtk_widget_set_can_focus(GTK_WIDGET(c->view), TRUE);
+      gtk_widget_grab_focus(GTK_WIDGET(c->view));
+    }
   return Qnil;
 }
 
@@ -194,7 +197,10 @@ webkitgtk_unfocus(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   Client *c = (Client *)env->get_user_ptr(env, args[0]);
   printf("unfocusing %p\n", c);
   if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    gtk_widget_grab_focus(GTK_WIDGET(fixed));
+    {
+      gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
+      gtk_widget_grab_focus(GTK_WIDGET(fixed));
+    }
   return Qnil;
 }
 
@@ -460,7 +466,7 @@ webview_notify_title (WebKitWebView *webview, GParamSpec *pspec, Client *c)
   const gchar *title = webkit_web_view_get_title(webview);
 
   if (title != NULL)
-    send_to_lisp (c, "title", title);
+    send_to_lisp (c, "webkitgtk--callback-title", title);
 }
 
 static void
@@ -480,7 +486,7 @@ decide_navigation_action (Client *c, WebKitPolicyDecision *dec)
       && (button == 2 || (button == 1 && mod & GDK_CONTROL_MASK)))
     {
       webkit_policy_decision_ignore(dec);
-      send_to_lisp (c, "new-view", uri);
+      send_to_lisp (c, "webkitgtk--callback-new-view", uri);
     }
   else
     {
@@ -499,7 +505,7 @@ decide_new_window_action (Client *c, WebKitPolicyDecision *dec)
 
   /* This is triggered on link click for links with target="_blank" */
   if (webkit_navigation_action_is_user_gesture(action))
-    send_to_lisp (c, "new-view", uri);
+    send_to_lisp (c, "webkitgtk--callback-new-view", uri);
   webkit_policy_decision_ignore(dec);
 }
 
@@ -548,7 +554,7 @@ webcontext_download_started(WebKitWebContext *webctx, WebKitDownload *download,
   webkit_download_cancel(download);
 
   if (uri != NULL)
-    send_to_lisp (c, "download-request", uri);
+    send_to_lisp (c, "webkitgtk--callback-download-request", uri);
 }
 
 static emacs_value
@@ -566,8 +572,8 @@ webkitgtk_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   c->view = WEBKIT_WEB_VIEW (webkit_web_view_new ());
   gtk_fixed_put (fixed, GTK_WIDGET (c->view), 0, 0);
   gtk_widget_show_all (GTK_WIDGET (c->view));
-  //gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
-  gtk_widget_set_focus_on_click (GTK_WIDGET (c->view), FALSE);
+  gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
+  //gtk_widget_set_focus_on_click (GTK_WIDGET (c->view), FALSE);
   g_signal_connect (G_OBJECT (c->view), "key-press-event",
                     G_CALLBACK (webview_key_press_event), c);
   g_signal_connect (G_OBJECT (c->view), "notify::title",

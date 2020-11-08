@@ -44,17 +44,7 @@
 (declare-function webkitgtk--register-script-message "webkitgtk-module")
 (declare-function webkitgtk--unregister-script-message "webkitgtk-module")
 
-(defun fake-module-reload (module)
-  (interactive "Reload Module file: ")
-  (let ((tmpfile (make-temp-file
-                  (file-name-nondirectory module) nil module-file-suffix)))
-    (copy-file module tmpfile t)
-    (module-load tmpfile)))
-
-(fake-module-reload (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so"))
-;;(module-load (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so"))
-;;(add-to-list 'load-path (expand-file-name "~/git/emacs-webkitgtk"))
-;;(require 'webkitgtk-module)
+(require 'webkitgtk-module)
 
 (defvar webkitgtk-mode-map
   (let ((map (make-sparse-keymap)))
@@ -93,18 +83,18 @@
   "Increase webkitgtk view zoom factor."
   (interactive)
   (webkitgtk--set-zoom
-   (or webkitgtk-id (webkitgtk--current-id))
+   (or webkitgtk-id webkitgtk--id)
    (+ (webkitgtk--get-zoom
-       (or webkitgtk-id (webkitgtk--current-id)))
+       (or webkitgtk-id webkitgtk--id))
       0.1)))
 
 (defun webkitgtk-zoom-out (&optional webkitgtk-id)
   "Decrease webkitgtk view zoom factor."
   (interactive)
   (webkitgtk--set-zoom
-   (or webkitgtk-id (webkitgtk--current-id))
+   (or webkitgtk-id webkitgtk--id)
    (+ (webkitgtk--get-zoom
-       (or webkitgtk-id (webkitgtk--current-id)))
+       (or webkitgtk-id webkitgtk--id))
       -0.1)))
 
 (defun webkitgtk-scroll-up (&optional arg webkitgtk-id)
@@ -114,7 +104,7 @@ Interactively, ARG is the prefix numeric argument.
 Negative ARG scrolls down."
   (interactive "P")
   (webkitgtk--execute-js
-   (or webkitgtk-id (webkitgtk--current-id))
+   (or webkitgtk-id webkitgtk--id)
    (format "window.scrollBy(0, %d);"
            (or arg (pcase-let ((`(,left ,top ,right ,bottom)
                                 (window-inside-pixel-edges (selected-window))))
@@ -127,7 +117,7 @@ Interactively, ARG is the prefix numeric argument.
 Negative ARG scrolls up."
   (interactive "P")
   (webkitgtk--execute-js
-   (or webkitgtk-id (webkitgtk--current-id))
+   (or webkitgtk-id webkitgtk--id)
    (format "window.scrollBy(0, -%d);"
            (or arg (pcase-let ((`(,left ,top ,right ,bottom)
                                 (window-inside-pixel-edges (selected-window))))
@@ -155,7 +145,7 @@ The width of char is calculated with `window-font-width'.
 If N is omitted or nil, scroll forwards by one char."
   (interactive "p")
   (webkitgtk--execute-js
-   (or webkitgtk-id (webkitgtk--current-id))
+   (or webkitgtk-id webkitgtk--id)
    (format "window.scrollBy(%d, 0);"
            (* n (window-font-width)))))
 
@@ -165,7 +155,7 @@ The width of char is calculated with `window-font-width'.
 If N is omitted or nil, scroll backwards by one char."
   (interactive "p")
   (webkitgtk--execute-js
-   (or webkitgtk-id (webkitgtk--current-id))
+   (or webkitgtk-id webkitgtk--id)
    (format "window.scrollBy(-%d, 0);"
            (* n (window-font-width)))))
 
@@ -173,57 +163,85 @@ If N is omitted or nil, scroll backwards by one char."
   "Scroll webkitgtk to the very top."
   (interactive)
   (webkitgtk--execute-js
-   (or webkitgtk-id (webkitgtk--current-id))
+   (or webkitgtk-id webkitgtk--id)
    "window.scrollTo(pageXOffset, 0);"))
 
 (defun webkitgtk-scroll-bottom (&optional webkitgtk-id)
   "Scroll webkitgtk to the very bottom."
   (interactive)
   (webkitgtk--execute-js
-   (or webkitgtk-id (webkitgtk--current-id))
+   (or webkitgtk-id webkitgtk--id)
    "window.scrollTo(pageXOffset, window.document.body.scrollHeight);"))
 
 (defun webkitgtk-forward (&optional webkitgtk-id)
   "Go forward in history."
   (interactive)
-    (webkitgtk--forward (or webkitgtk-id (webkitgtk--current-id))))
+  (webkitgtk--forward (or webkitgtk-id webkitgtk--id)))
 
 (defun webkitgtk-back (&optional webkitgtk-id)
   "Go back in history."
   (interactive)
-    (webkitgtk--back (or webkitgtk-id (webkitgtk--current-id))))
+  (webkitgtk--back (or webkitgtk-id webkitgtk--id)))
 
 (defun webkitgtk-reload (&optional webkitgtk-id)
   "Reload current URL."
   (interactive)
-  (webkitgtk--reload (or webkitgtk-id (webkitgtk--current-id))))
+  (webkitgtk--reload (or webkitgtk-id webkitgtk--id)))
 
 (defun webkitgtk-insert-mode (&optional webkitgtk-id)
   (interactive)
-  (webkitgtk--focus (or webkitgtk-id (webkitgtk--current-id))))
+  (webkitgtk--focus (or webkitgtk-id webkitgtk--id)))
 
-(defun webkitgtk--current-id ()
-  (when (eq major-mode 'webkitgtk-mode)
-    (car (rassoc (current-buffer) webkitgtk--id-buffer-alist))))
-  
+(defun webkitgtk--file-to-string (filename)
+  (with-temp-buffer
+    (insert-file-contents filename)
+    (buffer-string)))
+
+(defun webkitgtk--callback-key-down (val)
+  (message val)
+  (webkitgtk--unfocus webkitgtk--id))
+
+(defun webkitgtk--callback-title (title)
+  (rename-buffer title t))
+
+(defun webkitgtk--callback-new-view (uri)
+  (with-current-buffer (webkitgtk-new)
+    (webkitgtk--load-uri webkitgtk--id url)))
+
+(defun webkitgtk--callback-download-request (uri)
+  (message "TODO: download request for %s" uri))
+
+(defun webkitgtk--filter (proc string)
+  (when (buffer-live-p (process-buffer proc))
+    (with-current-buffer (process-buffer proc)
+      (goto-char (point-max))
+      (insert string)
+      (goto-char 1)
+      (while (re-search-forward "\\([^\x00]*\\)\x00\\([^\x00]*\\)\x00" nil t)
+        (let ((id (match-string 1))
+              (msg (match-string 2)))
+          (delete-region 1 (match-end 0))
+          (message "id: %s; message: %s" id msg)
+          (funcall (intern id) msg))))))
+
 (defun webkitgtk--adjust-size (frame)
   "Adjust webkitgtk size for window in FRAME"
   ;;(message "adjusting size...")
-  (dolist (id-buffer webkitgtk--id-buffer-alist)
-    (if (buffer-live-p (cdr id-buffer))
-        (with-current-buffer (cdr id-buffer) 
+  (dolist (buffer webkitgtk--buffers)
+    (if (buffer-live-p buffer)
+        (with-current-buffer buffer
           (let* ((windows (get-buffer-window-list (current-buffer) 'nomini frame)))
             (if (not windows)
-                (webkitgtk--hide (car id-buffer))
-              (pcase-let ((`(,left ,top ,right ,bottom) (window-inside-pixel-edges
-                                                         (car windows))))
-                (webkitgtk--show (car id-buffer))
-                (webkitgtk--resize (car id-buffer)
-                                  left top (- right left) (- bottom top)))
+                (webkitgtk--hide webkitgtk--id)
+              (pcase-let ((`(,left ,top ,right ,bottom)
+                           (window-inside-pixel-edges (car windows))))
+                (webkitgtk--show webkitgtk--id)
+                (webkitgtk--resize webkitgtk--id
+                                   left top (- right left) (- bottom top)))
               (dolist (window (cdr windows))
                 (switch-to-prev-buffer window)))))
-      (webkitgtk--hide (car id-buffer))
-      (setq webkitgtk--id-buffer-alist (delq id-buffer webkitgtk--id-buffer-alist)))))
+      (webkitgtk--hide webkitgtk--id)
+      (setq webkitgtk--buffers (delq buffer webkitgtk--buffers)))))
 
 (require 'browse-url)
 
@@ -233,30 +251,41 @@ If N is omitted or nil, scroll backwards by one char."
 NEW-SESSION specifies whether to create a new webkitgtk session or use the 
 current session."
   (interactive (progn (browse-url-interactive-arg "URL: ")))
-  (when (or new-session (not (webkitgtk--current-id)))
-    (webkitgtk-new))
-  (webkitgtk--load-uri (webkitgtk--current-id) url))
+  (if (or new-session (not webkitgtk--id))
+      (webkitgtk-new url)
+    (webkitgtk--load-uri webkitgtk--id url)))
   
-(defun webkitgtk-new (&optional buffer-name)
+(defun webkitgtk-new (&optional url buffer-name noquery)
   "Create a new webkitgtk with URL
 
 If called with an argument BUFFER-NAME, the name of the new buffer will
-be set to BUFFER-NAME, otherwise it will be `webkitgtk'"
+be set to BUFFER-NAME, otherwise it will be `webkitgtk'.
+Returns the newly created webkitgtk buffer"
   (unless (boundp 'gtk-version-string)
     (user-error "Your Emacs was not compiled with gtk"))
   (let ((buffer (generate-new-buffer (or buffer-name "*webkitgtk*"))))
     (with-current-buffer buffer
       (webkitgtk-mode)
-      (let ((id (webkitgtk--new (make-pipe-process
-                                 :name "webkitgtk" :buffer buffer))))
-        (push (cons id buffer) webkitgtk--id-buffer-alist)))
-    (switch-to-buffer buffer)))
+      (setq webkitgtk--id (webkitgtk--new
+                           (make-pipe-process :name "webkitgtk"
+                                              :buffer buffer
+                                              :filter 'webkitgtk--filter
+                                              :noquery noquery)))
+      (push buffer webkitgtk--buffers)
+      (webkitgtk--register-script-message
+       webkitgtk--id "webkitgtk--callback-key-down")
+      (webkitgtk--add-user-script
+       webkitgtk--id (webkitgtk--file-to-string "script.js"))
+      (when url (webkitgtk--load-uri webkitgtk--id url))
+      (switch-to-buffer buffer))))
 
 (define-derived-mode webkitgtk-mode
   special-mode "webkitgtk" "webkitgtk view mode."
-  (setq buffer-read-only t))
+  (setq buffer-read-only nil))
 
-(setq webkitgtk--id-buffer-alist nil)
+(make-variable-buffer-local 'webkitgtk--id)
+(setq webkitgtk--buffers nil)
+;;(setq webkitgtk--callbacks nil)
 (add-hook 'window-size-change-functions #'webkitgtk--adjust-size)
 ;;(remove-hook 'window-size-change-functions #'webkitgtk--adjust-size)
 
