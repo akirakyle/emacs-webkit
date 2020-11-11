@@ -1,4 +1,4 @@
-CFLAGS   = -std=c99 -s -Wall -Wextra -Wno-unused-parameter -O3 -g3 -fpic `pkg-config --cflags gtk+-3.0 webkit2gtk-4.0 --libs webkit2gtk-4.0`
+CFLAGS   = -std=c99 -Wall -Wextra -Wno-unused-parameter -O3 -g -fpic `pkg-config --cflags gtk+-3.0 webkit2gtk-4.0 --libs webkit2gtk-4.0`
 
 all : webkitgtk-module.so
 

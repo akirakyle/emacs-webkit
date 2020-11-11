@@ -27,6 +27,7 @@
 
 ;; Don't require dynamic module at byte compile time.
 (declare-function webkitgtk--new "webkitgtk-module")
+(declare-function webkitgtk--destroy "webkitgtk-module")
 (declare-function webkitgtk--resize "webkitgtk-module")
 (declare-function webkitgtk--hide "webkitgtk-module")
 (declare-function webkitgtk--show "webkitgtk-module")
@@ -50,11 +51,24 @@
 
 (require 'webkitgtk-module)
 
+(defconst webkitgtk-base (file-name-directory load-file-name))
+
 (defgroup webkitgtk nil
   "webkitgtk browser ."
   :group 'convenience)
 
-(defconst webkitgtk-base (file-name-directory load-file-name))
+(defcustom webkitgtk-search-prefix "https://duckduckgo.com/html/?q="
+  "Prefix URL to search engine."
+  :group 'webkitgtk
+  :type 'string)
+
+(defcustom webkitgtk-own-window nil
+  "Whether webkitgtk should use its own window instead of
+attemptting to embed itself in its buffer. The curretly focused
+frame must be display-graphic-p and either x or pgtk when
+webkitgtk-new is run in order for embedding to work."
+  :group 'webkitgtk
+  :type 'boolean)
 
 (defvar webkitgtk-mode-map
   (let ((map (make-sparse-keymap)))
@@ -243,6 +257,10 @@ If N is omitted or nil, scroll backwards by one char."
 (defun webkitgtk--callback-download-request (uri)
   (message "TODO: download request for %s" uri))
 
+(defun webkitgtk--close (msg)
+  (set-process-query-on-exit-flag (get-buffer-process (current-buffer)) nil)
+  (kill-this-buffer))
+
 (defun webkitgtk--filter (proc string)
   (when (buffer-live-p (process-buffer proc))
     (with-current-buffer (process-buffer proc)
@@ -274,8 +292,9 @@ If N is omitted or nil, scroll backwards by one char."
                 (switch-to-prev-buffer window))))))))
 
 (defun webkitgtk--kill-buffer ()
-  (when webkitgtk--id
-    (webkitgtk--hide webkitgtk--id)
+  (when (eq major-mode 'webkitgtk-mode)
+    ;;(webkitgtk--hide webkitgtk--id)
+    (webkitgtk--destroy webkitgtk--id)
     (setq webkitgtk--buffers (delq (current-buffer) webkitgtk--buffers))))
 
 (setq webkitgtk--script (webkitgtk--file-to-string
@@ -289,8 +308,6 @@ If N is omitted or nil, scroll backwards by one char."
 If called with an argument BUFFER-NAME, the name of the new buffer will
 be set to BUFFER-NAME, otherwise it will be `webkitgtk'.
 Returns the newly created webkitgtk buffer"
-  (unless (boundp 'gtk-version-string)
-    (user-error "Your Emacs was not compiled with gtk"))
   (let ((buffer (generate-new-buffer (or buffer-name "*webkitgtk*"))))
     (with-current-buffer buffer
       (webkitgtk-mode)
@@ -298,7 +315,8 @@ Returns the newly created webkitgtk buffer"
                            (make-pipe-process :name "webkitgtk"
                                               :buffer buffer
                                               :filter 'webkitgtk--filter
-                                              :noquery noquery)))
+                                              :noquery noquery)
+                           webkitgtk-own-window))
       (push buffer webkitgtk--buffers)
       (webkitgtk--register-script-message
        webkitgtk--id "webkitgtk--callback-key-down")
@@ -309,17 +327,6 @@ Returns the newly created webkitgtk buffer"
         (posframe-delete-all)) ;; hack necessary to get correct z-ordering
       (switch-to-buffer buffer))))
 
-(define-derived-mode webkitgtk-mode special-mode "webkitgtk"
-  "webkitgtk view mode."
-  (setq buffer-read-only nil))
-
-(make-variable-buffer-local 'webkitgtk--id)
-(setq webkitgtk--buffers nil)
-;;(setq webkitgtk--callbacks nil)
-(add-hook 'window-size-change-functions #'webkitgtk--adjust-size)
-(add-hook 'kill-buffer-hook #'webkitgtk--kill-buffer)
-;;(remove-hook 'window-size-change-functions #'webkitgtk--adjust-size)
-
 (require 'browse-url)
 
 (defun webkitgtk-browse-url (url &optional new-session)
@@ -328,14 +335,12 @@ Returns the newly created webkitgtk buffer"
 NEW-SESSION specifies whether to create a new webkitgtk session or use the 
 current session."
   (interactive (progn (browse-url-interactive-arg "URL: ")))
-  (if (or new-session (not webkitgtk--id))
+  (if (or new-session (not webkitgtk--buffers))
       (webkitgtk-new url)
-    (webkitgtk--load-uri webkitgtk--id url)))
-
-(defcustom webkitgtk-search-prefix "https://duckduckgo.com/html/?q="
-  "Prefix URL to search engine."
-  :group 'webkitgtk
-  :type 'string)
+    (webkitgtk--load-uri (or webkitgtk--id
+                             (with-current-buffer (car webkitgtk--buffers)
+                               webkitgtk--id))
+                         url)))
 
 (defun webkitgtk (url &optional arg)
   "Fetch URL and render the page.
@@ -346,12 +351,25 @@ If called with a prefix ARG, create a new webkit buffer instead of reusing
 the default webkit buffer."
   (interactive
    (let ((prompt "URL or keywords: "))
-     (list (if (require 'webkitgtk-history nil t)
-               (webkitgtk-history-completing-read prompt "")
-             (read-string prompt nil 'eww-prompt-history ""))
+     (list ;;(if (require 'webkitgtk-history nil t)
+           ;;    (webkitgtk-history-completing-read prompt "")
+             (read-string prompt nil 'eww-prompt-history "")
            (prefix-numeric-value current-prefix-arg))))
   (let ((eww-search-prefix webkitgtk-search-prefix))
     (webkitgtk-browse-url (eww--dwim-expand-url url) (eq arg 4))))
+
+(define-derived-mode webkitgtk-mode special-mode "webkitgtk"
+  "webkitgtk view mode."
+  (setq buffer-read-only nil))
+
+(make-variable-buffer-local 'webkitgtk--id)
+(setq webkitgtk--buffers nil)
+
+(unless webkitgtk-own-window
+  (add-hook 'window-size-change-functions #'webkitgtk--adjust-size))
+;;(remove-hook 'window-size-change-functions #'webkitgtk--adjust-size)
+
+(add-hook 'kill-buffer-hook #'webkitgtk--kill-buffer)
 
 (provide 'webkitgtk)
 ;;; webkitgtk.el ends here

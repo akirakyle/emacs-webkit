@@ -16,7 +16,9 @@
 
 (evil-collection-xwidget-setup)
 
-(webkitgtk-browse-url "http://xkcd.com")
+(webkitgtk-browse-url "http://xkcd.com" t)
+(setq webkitgtk-search-prefix "https://google.com/search?q=")
+(setq webkitgtk-own-window t)
 
 ;;(setq my-pipe (get-buffer-process (cdr (car webkitgtk--id-buffer-alist))))
 (with-current-buffer (car webkitgtk--buffers) (buffer-string))
@@ -37,3 +39,10 @@
 (webkitgtk--execute-js webkitgtk--id
                        "window.webkit.messageHandlers[\"webkitgtk--callback-key-down\"].postMessage(\"hi\")"
                        "message")
+(setq webkitgtk--id nil)
+(garbage-collect)
+
+(remove-hook 'window-size-change-functions #'webkitgtk--adjust-size)
+(webkitgtk--show webkitgtk--id)
+
+(webkitgtk--resize webkitgtk--id 50 50 200 400)

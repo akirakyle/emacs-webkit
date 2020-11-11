@@ -2,6 +2,7 @@
 
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
+#include <stdbool.h>
 #include <signal.h>
 #include <assert.h>
 #include <errno.h>
@@ -15,7 +16,7 @@ static emacs_value Qnil;
 static emacs_value Qt;
 
 typedef struct Client {
-  GtkWidget *win;
+  GtkWidget *container;
   WebKitWebView *view;
   int fd;
 } Client;
@@ -24,54 +25,6 @@ typedef struct Callback {
   Client *c;
   char *id;
 } Callback;
-
-static GtkFixed *fixed;
-
-static void
-print_widgets (GList *widgets)
-{
-  for (GList *l = widgets; l != NULL; l = l->next)
-    {
-      char *path = gtk_widget_path_to_string(gtk_widget_get_path(l->data));
-      printf("widget %s\n", path);
-      if (GTK_IS_FIXED(l->data))
-        printf("found fixed!\n");
-      if (GTK_IS_WINDOW(l->data))
-        {
-          printf("  window: %s, focus: %d\n", gtk_window_get_title(l->data),
-                 gtk_window_has_toplevel_focus(l->data));
-          print_widgets(gtk_container_get_children(GTK_CONTAINER(l->data)));
-        }
-      else if (GTK_IS_CONTAINER(l->data))
-        {
-          printf("  container\n");
-          print_widgets(gtk_container_get_children(GTK_CONTAINER(l->data)));
-        }
-    }
-}
-
-static GtkFixed *
-toplevel_window_focused ()
-{
-  GList *widgets = gtk_window_list_toplevels();
-  for (GList *l = widgets; l != NULL; l = l->next)
-    if (gtk_window_has_toplevel_focus(l->data))
-      return l->data;
-  return NULL;
-}
-
-static GtkFixed *
-find_fixed_widget (GList *widgets)
-{
-  for (GList *l = widgets; l != NULL; l = l->next)
-    {
-      if (GTK_IS_FIXED(l->data))
-        return l->data;
-      if (GTK_IS_CONTAINER(l->data))
-        return find_fixed_widget(gtk_container_get_children(GTK_CONTAINER(l->data)));
-    }
-  return NULL;
-}
 
 static bool
 copy_string_contents (emacs_env *env, emacs_value value,
@@ -102,169 +55,167 @@ copy_string_contents (emacs_env *env, emacs_value value,
   return true;
 }
 
-static emacs_value
-webkitgtk_set_zoom(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+Client *
+get_client (emacs_env *env, emacs_value value)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  double zoom = env->extract_float(env, args[1]);
-  printf("zoom %p to: %f\n", c, zoom);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    webkit_web_view_set_zoom_level(c->view, (gdouble)zoom);
+  Client *c = (Client *)env->get_user_ptr(env, value);
+  if ((env->non_local_exit_check(env) == emacs_funcall_exit_return)
+      && c->container != NULL)
+    return c;
+  return NULL;
+}
+
+static emacs_value
+webkitgtk_set_zoom (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  double zoom = env->extract_float (env, args[1]);
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    webkit_web_view_set_zoom_level (c->view, (gdouble)zoom);
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_get_zoom(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_get_zoom (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
     {
-      gdouble zoom = webkit_web_view_get_zoom_level(c->view);
-      printf("zoom %p to: %f\n", c, zoom);
-      return env->make_float(env, (double)zoom);
+      gdouble zoom = webkit_web_view_get_zoom_level (c->view);
+      return env->make_float (env, (double)zoom);
     }
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_forward(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_forward (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    webkit_web_view_go_forward(c->view);
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    webkit_web_view_go_forward (c->view);
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_back(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_back (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    webkit_web_view_go_back(c->view);
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    webkit_web_view_go_back (c->view);
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_reload(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_reload (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    webkit_web_view_reload(c->view);
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    webkit_web_view_reload (c->view);
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_get_title(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_get_title (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
     {
-      const gchar *title = webkit_web_view_get_title(c->view);
-      return env->make_string(env, title, strlen (title));
+      const gchar *title = webkit_web_view_get_title (c->view);
+      return env->make_string (env, title, strlen (title));
     }
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_get_uri(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_get_uri (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
     {
-      const gchar *uri = webkit_web_view_get_uri(c->view);
-      return env->make_string(env, uri, strlen (uri));
+      const gchar *uri = webkit_uri_for_display (webkit_web_view_get_uri
+                                                 (c->view));
+      return env->make_string (env, uri, strlen (uri));
     }
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_load_uri(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_load_uri (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-
+  Client *c = get_client (env, args[0]);
   size_t size;
   char *uri = NULL;
-  if (copy_string_contents (env, args[1], &uri, &size))
-    webkit_web_view_load_uri(c->view, uri);
+  if ((c != NULL) && copy_string_contents (env, args[1], &uri, &size))
+    webkit_web_view_load_uri (c->view, uri);
 
-  printf("loading %p uri: %s\n", c, uri);
   free (uri);
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_hide(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_hide (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  printf("hiding %p\n", c);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    gtk_widget_hide(GTK_WIDGET(c->view));
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    gtk_widget_hide (GTK_WIDGET (c->view));
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_show(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_show (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  printf("showing %p\n", c);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
-    gtk_widget_show(GTK_WIDGET(c->view));
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    gtk_widget_show (GTK_WIDGET (c->view));
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_focus(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_focus (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  printf("focusing %p\n", c);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
     {
-      gtk_widget_set_can_focus(GTK_WIDGET(c->view), TRUE);
-      gtk_widget_grab_focus(GTK_WIDGET(c->view));
+      gtk_widget_set_can_focus (GTK_WIDGET (c->view), TRUE);
+      gtk_widget_grab_focus (GTK_WIDGET (c->view));
     }
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_unfocus(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_unfocus (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
-  printf("unfocusing %p\n", c);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
     {
-      gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
-      gtk_widget_grab_focus(GTK_WIDGET(fixed));
+      gtk_widget_set_can_focus (GTK_WIDGET (c->view), FALSE);
+      gtk_widget_grab_focus (GTK_WIDGET (c->container));
     }
   return Qnil;
 }
 
 static emacs_value
-webkitgtk_resize(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkitgtk_resize (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  Client *c = get_client(env, args[0]);
   int x = env->extract_integer(env, args[1]);
   int y = env->extract_integer(env, args[2]);
   int w = env->extract_integer(env, args[3]);
   int h = env->extract_integer(env, args[4]);
 
-  printf("resize %p to (x:%d y:%d w:%d h:%d)\n", c, x, y, w, h);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+  //printf("resize %p to (x:%d y:%d w:%d h:%d)\n", c, x, y, w, h);
+  if ((env->non_local_exit_check(env) == emacs_funcall_exit_return)
+      && (c != NULL))
     {
-      gtk_fixed_move(fixed, GTK_WIDGET(c->view), x, y);
+      if (GTK_IS_FIXED(c->container))
+        gtk_fixed_move (GTK_FIXED (c->container), GTK_WIDGET(c->view), x, y);
+      else if (GTK_IS_WINDOW(c->container))
+        gtk_window_move (GTK_WINDOW (c->container), x, y);
+      else
+        assert (0);
       gtk_widget_set_size_request(GTK_WIDGET(c->view), w, h);
     }
   return Qnil;
-}
-
-static void
-webkitgtk_destroy (void *ptr)
-{
-  printf("destroying %p\n", ptr);
-  Client *c = (Client *)ptr;
-  gtk_container_remove(GTK_CONTAINER(fixed), GTK_WIDGET(c->view));
-  // not needed due to gobject ref count
-  // gtk_widget_destroy(GTK_WIDGET(c->view));
-  free(c);
 }
 
 static ssize_t
@@ -336,23 +287,23 @@ webkitgtk_js_finished (GObject *web_view, GAsyncResult *result, gpointer arg)
 static emacs_value
 webkitgtk_execute_js (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr (env, args[0]);
+  Client *c = get_client (env, args[0]);
   size_t size;
   char *script = NULL;
   char *id = NULL;
-  if (copy_string_contents (env, args[1], &script, &size))
+  if ((c != NULL) && copy_string_contents (env, args[1], &script, &size))
     {
       if ((n == 3) && copy_string_contents (env, args[2], &id, &size))
         {
           Callback *cb = malloc (sizeof (Callback));
           cb->c = c;
           cb->id = id;
-          webkit_web_view_run_javascript(c->view, script, NULL,
-                                         webkitgtk_js_finished, (gpointer) cb);
+          webkit_web_view_run_javascript (c->view, script, NULL,
+                                          webkitgtk_js_finished, (gpointer) cb);
         }
       else
         {
-          webkit_web_view_run_javascript(c->view, script, NULL, NULL, NULL);
+          webkit_web_view_run_javascript (c->view, script, NULL, NULL, NULL);
         }
     }
   printf ("executing %p script: %s id: %s\n", c, script, id);
@@ -364,10 +315,10 @@ static emacs_value
 webkitgtk_add_user_style (emacs_env *env, ptrdiff_t n,
                           emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr (env, args[0]);
+  Client *c = get_client (env, args[0]);
   size_t size;
   char *style = NULL;
-  if (copy_string_contents (env, args[1], &style, &size))
+  if ((c != NULL) && copy_string_contents (env, args[1], &style, &size))
     {
       WebKitUserContentManager *ucm =
         webkit_web_view_get_user_content_manager (c->view);
@@ -391,25 +342,24 @@ static emacs_value
 webkitgtk_remove_all_user_styles (emacs_env *env, ptrdiff_t n,
                                   emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr (env, args[0]);
-
-  printf("webkitgtk_remove_all_user_styles from %p", c);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
     {
       WebKitUserContentManager *ucm =
         webkit_web_view_get_user_content_manager (c->view);
       webkit_user_content_manager_remove_all_style_sheets (ucm);
     }
+  printf("webkitgtk_remove_all_user_styles from %p", c);
   return Qnil;
 }
 static emacs_value
 webkitgtk_add_user_script (emacs_env *env, ptrdiff_t n,
                            emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr (env, args[0]);
+  Client *c = get_client (env, args[0]);
   size_t size;
   char *script = NULL;
-  if (copy_string_contents (env, args[1], &script, &size))
+  if ((c != NULL) && copy_string_contents (env, args[1], &script, &size))
     {
       WebKitUserContentManager *ucm =
         webkit_web_view_get_user_content_manager (c->view);
@@ -434,15 +384,14 @@ static emacs_value
 webkitgtk_remove_all_user_scripts (emacs_env *env, ptrdiff_t n,
                                    emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr (env, args[0]);
-
-  printf("webkitgtk_remove_all_user_scripts from %p", c);
-  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
     {
       WebKitUserContentManager *ucm =
         webkit_web_view_get_user_content_manager (c->view);
       webkit_user_content_manager_remove_all_scripts (ucm);
     }
+  printf("webkitgtk_remove_all_user_scripts from %p", c);
   return Qnil;
 }
 
@@ -473,10 +422,10 @@ static emacs_value
 webkitgtk_register_script_message (emacs_env *env, ptrdiff_t n,
                                    emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr (env, args[0]);
+  Client *c = get_client (env, args[0]);
   size_t size;
   char *name = NULL;
-  if (copy_string_contents (env, args[1], &name, &size))
+  if ((c != NULL) && copy_string_contents (env, args[1], &name, &size))
     {
       WebKitUserContentManager *ucm =
         webkit_web_view_get_user_content_manager (c->view);
@@ -500,10 +449,10 @@ static emacs_value
 webkitgtk_unregister_script_message (emacs_env *env, ptrdiff_t n,
                                      emacs_value *args, void *ptr)
 {
-  Client *c = (Client *)env->get_user_ptr (env, args[0]);
   size_t size;
   char *name = NULL;
-  if (copy_string_contents (env, args[1], &name, &size))
+  Client *c = get_client (env, args[0]);
+  if ((c != NULL) && copy_string_contents (env, args[1], &name, &size))
     {
       WebKitUserContentManager *ucm =
         webkit_web_view_get_user_content_manager (c->view);
@@ -527,7 +476,7 @@ webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
     printf("key.keyval = %d\n", e->key.keyval);
     if (e->key.keyval == GDK_KEY_Escape && e->key.state == 0)
       {
-        gtk_widget_grab_focus(GTK_WIDGET(fixed));
+        gtk_widget_grab_focus(GTK_WIDGET(c->container));
         return TRUE;
       }
   default:
@@ -539,7 +488,7 @@ webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
 static void
 webview_notify_load_progress (WebKitWebView *webview, GParamSpec *pspec, Client *c)
 {
-  gdouble prog = 100.0 * webkit_web_view_get_estimated_load_progress(webview);
+  gdouble prog = 100.0 * webkit_web_view_get_estimated_load_progress (webview);
   char buf[G_ASCII_DTOSTR_BUF_SIZE];
   send_to_lisp (c, "webkitgtk--callback-progress",
                 g_ascii_dtostr (buf, sizeof (buf), prog));
@@ -548,7 +497,7 @@ webview_notify_load_progress (WebKitWebView *webview, GParamSpec *pspec, Client 
 static void
 webview_notify_uri (WebKitWebView *webview, GParamSpec *pspec, Client *c)
 {
-  const gchar *uri = util_sanitize_uri(webkit_web_view_get_uri(webview));
+  const gchar *uri = webkit_uri_for_display (webkit_web_view_get_uri (webview));
   if (uri != NULL)
     send_to_lisp (c, "webkitgtk--callback-uri", uri);
 }
@@ -639,8 +588,8 @@ webview_decide_policy (WebKitWebView *webview, WebKitPolicyDecision *dec,
 }
 
 static void
-webcontext_download_started(WebKitWebContext *webctx, WebKitDownload *download,
-                            Client *c)
+webcontext_download_started (WebKitWebContext *webctx, WebKitDownload *download,
+                             Client *c)
 {
   const char *uri =
     webkit_uri_request_get_uri(webkit_download_get_request(download));
@@ -648,6 +597,101 @@ webcontext_download_started(WebKitWebContext *webctx, WebKitDownload *download,
 
   if (uri != NULL)
     send_to_lisp (c, "webkitgtk--callback-download-request", uri);
+} 
+
+static gboolean
+webview_close (WebKitWebView *webview, Client *c)
+{
+  assert (webview == c->view);
+  send_to_lisp (c, "webkitgtk--close", "");
+  return TRUE;
+}
+
+static void
+window_destroy (GtkWidget *window, Client *c)
+{
+  printf("window destroying %p\n", c);
+  if (c->container != NULL)
+    gtk_widget_destroy (c->container);
+  c->container = NULL;
+  c->view = NULL;
+  send_to_lisp (c, "webkitgtk--close", "");
+}
+
+static emacs_value
+webkitgtk_destroy (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  printf("destroying %p\n", c);
+  if (c != NULL)
+    {
+      //gtk_container_remove (GTK_CONTAINER (c->container), GTK_WIDGET (c->view));
+      gtk_widget_destroy (GTK_WIDGET (c->view));
+      if (GTK_IS_WINDOW(c->container))
+        gtk_widget_destroy (c->container);
+
+      c->container = NULL;
+      c->view = NULL;
+    }
+  return Qnil;
+}
+
+static void
+client_free (void *ptr)
+{
+  printf ("freeing %p\n", ptr);
+  Client *c = (Client *)ptr;
+  assert (c->container == NULL);
+  assert (c->view == NULL);
+  free(c);
+}
+
+static void
+print_widget_tree (GList *widgets)
+{
+  for (GList *l = widgets; l != NULL; l = l->next)
+    {
+      char *path = gtk_widget_path_to_string(gtk_widget_get_path(l->data));
+      printf("widget %s\n", path);
+      if (GTK_IS_FIXED(l->data))
+        printf("found fixed!\n");
+      if (GTK_IS_WINDOW(l->data))
+        {
+          printf("  window: %s, focus: %d\n", gtk_window_get_title(l->data),
+                 gtk_window_has_toplevel_focus(l->data));
+          print_widget_tree(gtk_container_get_children(GTK_CONTAINER(l->data)));
+        }
+      else if (GTK_IS_CONTAINER(l->data))
+        {
+          printf("  container\n");
+          print_widget_tree(gtk_container_get_children(GTK_CONTAINER(l->data)));
+        }
+    }
+}
+
+static GtkFixed *
+find_fixed_widget (GList *widgets)
+{
+  for (GList *l = widgets; l != NULL; l = l->next)
+    {
+      if (GTK_IS_FIXED (l->data))
+        return l->data;
+      if (GTK_IS_CONTAINER (l->data))
+        return find_fixed_widget (gtk_container_get_children
+                                  (GTK_CONTAINER (l->data)));
+    }
+  return NULL;
+}
+
+static GtkFixed *
+find_focused_fixed_widget ()
+{
+  GList *widgets = gtk_window_list_toplevels ();
+  for (GList *l = widgets; l != NULL; l = l->next)
+    if (gtk_window_has_toplevel_focus (l->data))
+      return find_fixed_widget (gtk_container_get_children
+                                (GTK_CONTAINER (l->data)));
+  return NULL;
 }
 
 static emacs_value
@@ -656,17 +700,51 @@ webkitgtk_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   Client *c;
   if (!(c = calloc (1, sizeof (Client))))
     {
-      printf ("Cannot malloc!\n");
+      env->non_local_exit_signal (env, env->intern (env, "memory-full"),
+                                  env->intern (env, "nil"));
       return Qnil;
     }
-  c->fd = env->open_channel (env, args[0]);
 
-  //gtk_init_check(&argc, &argv);
+  c->fd = env->open_channel (env, args[0]);
+  if (env->non_local_exit_check(env) != emacs_funcall_exit_return)
+    return Qnil;
+
   c->view = WEBKIT_WEB_VIEW (webkit_web_view_new ());
-  gtk_fixed_put (fixed, GTK_WIDGET (c->view), 0, 0);
-  gtk_widget_show_all (GTK_WIDGET (c->view));
   gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
   //gtk_widget_set_focus_on_click (GTK_WIDGET (c->view), FALSE);
+
+  print_widget_tree(gtk_window_list_toplevels());
+  if (env->is_not_nil (env, args[1]))
+    {
+      c->container = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+      //gtk_window_set_default_size
+      //  (GTK_WINDOW(c->container),
+      //   (n > 2) ? env->extract_integer (env, args[2]) : 400
+      //   (n > 3) ? env->extract_integer (env, args[3]) : 600);
+
+      g_signal_connect (G_OBJECT (c->container), "destroy",
+                        G_CALLBACK(window_destroy), c);
+
+      gtk_container_add (GTK_CONTAINER(c->container), GTK_WIDGET (c->view));
+      gtk_widget_show_all(c->container);
+    }
+  else
+    {
+      GtkFixed *fixed = find_focused_fixed_widget ();
+      if (fixed == NULL)
+        {
+          env->non_local_exit_signal
+            (env, env->intern (env, "webkitgtk-module-no-focused-fixed-widget"),
+             env->intern (env, "nil"));
+          return Qnil;
+        }
+      c->container = GTK_WIDGET (fixed);
+      gtk_fixed_put (GTK_FIXED (c->container), GTK_WIDGET (c->view), 0, 0);
+      gtk_widget_show_all (GTK_WIDGET (c->view));
+    }
+
+  g_signal_connect (G_OBJECT (c->view), "close",
+                    G_CALLBACK(webview_close), c);
   g_signal_connect (G_OBJECT (c->view), "key-press-event",
                     G_CALLBACK (webview_key_press_event), c);
   g_signal_connect (G_OBJECT (c->view), "notify::title",
@@ -688,7 +766,7 @@ webkitgtk_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   webkit_web_view_load_uri(c->view, "about:blank");
   sigaction (SIGCHLD, &old_action, NULL);
 
-  return env->make_user_ptr (env, webkitgtk_destroy, (void *) c);
+  return env->make_user_ptr (env, client_free, (void *) c);
 }
 
 static void
@@ -703,23 +781,28 @@ bind_function(emacs_env *env, const char *name, emacs_value Sfun)
 int
 emacs_module_init(struct emacs_runtime *ert)
 {
-  print_widgets(gtk_window_list_toplevels());
-
-  fixed = find_fixed_widget(gtk_window_list_toplevels());
-  if (fixed == NULL)
+  emacs_env *env = ert->get_environment(ert);
+  int argc = 0;
+  char **argv = NULL;
+  if (!gtk_init_check (&argc, &argv))
     {
-      printf("counldn't find fixed widget!\n");
+      env->non_local_exit_signal
+        (env, env->intern (env, "webkitgtk-module-init-gtk-failed"),
+         env->intern (env, "nil"));
       return 1;
     }
-
-  emacs_env *env = ert->get_environment(ert);
 
   // Symbols
   Qt = env->make_global_ref(env, env->intern(env, "t"));
   Qnil = env->make_global_ref(env, env->intern(env, "nil"));
+
+  // Functions
   emacs_value fun;
-  fun = env->make_function(env, 1, 1, webkitgtk_new, "", NULL);
+  fun = env->make_function(env, 2, 2, webkitgtk_new, "", NULL);
   bind_function(env, "webkitgtk--new", fun);
+
+  fun = env->make_function(env, 1, 1, webkitgtk_destroy, "", NULL);
+  bind_function(env, "webkitgtk--destroy", fun);
 
   fun = env->make_function(env, 5, 5, webkitgtk_resize, "", NULL);
   bind_function(env, "webkitgtk--resize", fun);
@@ -784,6 +867,7 @@ emacs_module_init(struct emacs_runtime *ert)
   emacs_value Qfeat = env->intern(env, "webkitgtk-module");
   emacs_value Qprovide = env->intern(env, "provide");
   env->funcall(env, Qprovide, 1, (emacs_value[]){Qfeat});
+  printf("init webkitgtk-module\n");
   return 0;
 }
 
