@@ -37,8 +37,12 @@
 (declare-function webkitgtk--reload "webkitgtk-module")
 (declare-function webkitgtk--get-zoom "webkitgtk-module")
 (declare-function webkitgtk--set-zoom "webkitgtk-module")
+(declare-function webkitgtk--get-title "webkitgtk-module")
+(declare-function webkitgtk--get-uri "webkitgtk-module")
 (declare-function webkitgtk--load-uri "webkitgtk-module")
 (declare-function webkitgtk--execute-js "webkitgtk-module")
+(declare-function webkitgtk--add-user-style "webkitgtk-module")
+(declare-function webkitgtk--remove-all-user-styles "webkitgtk-module")
 (declare-function webkitgtk--add-user-script "webkitgtk-module")
 (declare-function webkitgtk--remove-all-user-scripts "webkitgtk-module")
 (declare-function webkitgtk--register-script-message "webkitgtk-module")
@@ -46,9 +50,15 @@
 
 (require 'webkitgtk-module)
 
+(defgroup webkitgtk nil
+  "webkitgtk browser ."
+  :group 'convenience)
+
+(defconst webkitgtk-base (file-name-directory load-file-name))
+
 (defvar webkitgtk-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "g" 'webkitgtk-browse-url)
+    (define-key map "g" 'webkitgtk)
     (define-key map "f" 'webkitgtk-forward)
     (define-key map "b" 'webkitgtk-back)
     (define-key map "r" 'webkitgtk-reload)
@@ -192,6 +202,16 @@ If N is omitted or nil, scroll backwards by one char."
   (interactive)
   (webkitgtk--focus (or webkitgtk-id webkitgtk--id)))
 
+(defun webkitgtk-ace-toggle-callback (msg)
+  (message msg))
+
+(defun webkitgtk-ace (&optional webkitgtk-id)
+  "Start a webkitgtk ace jump."
+  (interactive)
+  (webkitgtk--execute-js
+   (or webkitgtk-id webkitgtk--id)
+   "webkitHints();" "webkitgtk-ace-toggle-callback"))
+
 (defun webkitgtk--file-to-string (filename)
   (with-temp-buffer
     (insert-file-contents filename)
@@ -202,11 +222,23 @@ If N is omitted or nil, scroll backwards by one char."
   (webkitgtk--unfocus webkitgtk--id))
 
 (defun webkitgtk--callback-title (title)
-  (rename-buffer title t))
+  (if (string= "" title)
+      (let ((uri (webkitgtk--get-uri webkitgtk--id)))
+        (if (string= "" uri)
+            (rename-buffer "*webkitgtk*" t)
+          (rename-buffer uri t)))
+    (rename-buffer title t)))
+
+(defun webkitgtk--callback-uri (uri)
+  (unless (string= "" uri)
+    (message uri)
+    ))
+
+(defun webkitgtk--callback-progress (progress)
+  (message "%s%%" progress))
 
 (defun webkitgtk--callback-new-view (uri)
-  (with-current-buffer (webkitgtk-new)
-    (webkitgtk--load-uri webkitgtk--id url)))
+  (webkitgtk-new uri))
 
 (defun webkitgtk--callback-download-request (uri)
   (message "TODO: download request for %s" uri))
@@ -239,22 +271,18 @@ If N is omitted or nil, scroll backwards by one char."
                 (webkitgtk--resize webkitgtk--id
                                    left top (- right left) (- bottom top)))
               (dolist (window (cdr windows))
-                (switch-to-prev-buffer window)))))
-      (webkitgtk--hide webkitgtk--id)
-      (setq webkitgtk--buffers (delq buffer webkitgtk--buffers)))))
+                (switch-to-prev-buffer window))))))))
 
-(require 'browse-url)
+(defun webkitgtk--kill-buffer ()
+  (when webkitgtk--id
+    (webkitgtk--hide webkitgtk--id)
+    (setq webkitgtk--buffers (delq (current-buffer) webkitgtk--buffers))))
 
-(defun webkitgtk-browse-url (url &optional new-session)
-  "Goto URL with webkitgtk using browse-url.
+(setq webkitgtk--script (webkitgtk--file-to-string
+                         (expand-file-name "script.js" webkitgtk-base)))
+(setq webkitgtk--style (webkitgtk--file-to-string
+                        (expand-file-name "style.css" webkitgtk-base)))
 
-NEW-SESSION specifies whether to create a new webkitgtk session or use the 
-current session."
-  (interactive (progn (browse-url-interactive-arg "URL: ")))
-  (if (or new-session (not webkitgtk--id))
-      (webkitgtk-new url)
-    (webkitgtk--load-uri webkitgtk--id url)))
-  
 (defun webkitgtk-new (&optional url buffer-name noquery)
   "Create a new webkitgtk with URL
 
@@ -274,20 +302,56 @@ Returns the newly created webkitgtk buffer"
       (push buffer webkitgtk--buffers)
       (webkitgtk--register-script-message
        webkitgtk--id "webkitgtk--callback-key-down")
-      (webkitgtk--add-user-script
-       webkitgtk--id (webkitgtk--file-to-string "script.js"))
+      (webkitgtk--add-user-script webkitgtk--id webkitgtk--script)
+      (webkitgtk--add-user-style webkitgtk--id webkitgtk--style)
       (when url (webkitgtk--load-uri webkitgtk--id url))
+      (when (fboundp 'posframe-delete-all)
+        (posframe-delete-all)) ;; hack necessary to get correct z-ordering
       (switch-to-buffer buffer))))
 
-(define-derived-mode webkitgtk-mode
-  special-mode "webkitgtk" "webkitgtk view mode."
+(define-derived-mode webkitgtk-mode special-mode "webkitgtk"
+  "webkitgtk view mode."
   (setq buffer-read-only nil))
 
 (make-variable-buffer-local 'webkitgtk--id)
 (setq webkitgtk--buffers nil)
 ;;(setq webkitgtk--callbacks nil)
 (add-hook 'window-size-change-functions #'webkitgtk--adjust-size)
+(add-hook 'kill-buffer-hook #'webkitgtk--kill-buffer)
 ;;(remove-hook 'window-size-change-functions #'webkitgtk--adjust-size)
+
+(require 'browse-url)
+
+(defun webkitgtk-browse-url (url &optional new-session)
+  "Goto URL with webkitgtk using browse-url.
+
+NEW-SESSION specifies whether to create a new webkitgtk session or use the 
+current session."
+  (interactive (progn (browse-url-interactive-arg "URL: ")))
+  (if (or new-session (not webkitgtk--id))
+      (webkitgtk-new url)
+    (webkitgtk--load-uri webkitgtk--id url)))
+
+(defcustom webkitgtk-search-prefix "https://duckduckgo.com/html/?q="
+  "Prefix URL to search engine."
+  :group 'webkitgtk
+  :type 'string)
+
+(defun webkitgtk (url &optional arg)
+  "Fetch URL and render the page.
+If the input doesn't look like an URL or a domain name, the
+word(s) will be searched for via `webkitgtk-search-prefix'.
+
+If called with a prefix ARG, create a new webkit buffer instead of reusing
+the default webkit buffer."
+  (interactive
+   (let ((prompt "URL or keywords: "))
+     (list (if (require 'webkitgtk-history nil t)
+               (webkitgtk-history-completing-read prompt "")
+             (read-string prompt nil 'eww-prompt-history ""))
+           (prefix-numeric-value current-prefix-arg))))
+  (let ((eww-search-prefix webkitgtk-search-prefix))
+    (webkitgtk-browse-url (eww--dwim-expand-url url) (eq arg 4))))
 
 (provide 'webkitgtk)
 ;;; webkitgtk.el ends here

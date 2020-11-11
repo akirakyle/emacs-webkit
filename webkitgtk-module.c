@@ -28,7 +28,7 @@ typedef struct Callback {
 static GtkFixed *fixed;
 
 static void
-print_widgets(GList *widgets)
+print_widgets (GList *widgets)
 {
   for (GList *l = widgets; l != NULL; l = l->next)
     {
@@ -51,7 +51,17 @@ print_widgets(GList *widgets)
 }
 
 static GtkFixed *
-find_fixed_widget(GList *widgets)
+toplevel_window_focused ()
+{
+  GList *widgets = gtk_window_list_toplevels();
+  for (GList *l = widgets; l != NULL; l = l->next)
+    if (gtk_window_has_toplevel_focus(l->data))
+      return l->data;
+  return NULL;
+}
+
+static GtkFixed *
+find_fixed_widget (GList *widgets)
 {
   for (GList *l = widgets; l != NULL; l = l->next)
     {
@@ -140,6 +150,30 @@ webkitgtk_reload(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   Client *c = (Client *)env->get_user_ptr(env, args[0]);
   if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
     webkit_web_view_reload(c->view);
+  return Qnil;
+}
+
+static emacs_value
+webkitgtk_get_title(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+    {
+      const gchar *title = webkit_web_view_get_title(c->view);
+      return env->make_string(env, title, strlen (title));
+    }
+  return Qnil;
+}
+
+static emacs_value
+webkitgtk_get_uri(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr(env, args[0]);
+  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+    {
+      const gchar *uri = webkit_web_view_get_uri(c->view);
+      return env->make_string(env, uri, strlen (uri));
+    }
   return Qnil;
 }
 
@@ -327,6 +361,48 @@ webkitgtk_execute_js (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 }
 
 static emacs_value
+webkitgtk_add_user_style (emacs_env *env, ptrdiff_t n,
+                          emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr (env, args[0]);
+  size_t size;
+  char *style = NULL;
+  if (copy_string_contents (env, args[1], &style, &size))
+    {
+      WebKitUserContentManager *ucm =
+        webkit_web_view_get_user_content_manager (c->view);
+      WebKitUserStyleSheet *user_style = webkit_user_style_sheet_new
+        (style,
+         ((n > 3) && env->is_not_nil (env, args[3])) ?
+         WEBKIT_USER_CONTENT_INJECT_TOP_FRAME :
+         WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+         ((n > 2) && env->is_not_nil (env, args[2])) ?
+         WEBKIT_USER_STYLE_LEVEL_AUTHOR : WEBKIT_USER_STYLE_LEVEL_USER,
+         NULL, NULL);
+      webkit_user_content_manager_add_style_sheet (ucm, user_style);
+      webkit_user_style_sheet_unref (user_style);
+    }
+  printf ("adding %p style: %s\n", c, style);
+  free (style);
+  return Qnil;
+}
+
+static emacs_value
+webkitgtk_remove_all_user_styles (emacs_env *env, ptrdiff_t n,
+                                  emacs_value *args, void *ptr)
+{
+  Client *c = (Client *)env->get_user_ptr (env, args[0]);
+
+  printf("webkitgtk_remove_all_user_styles from %p", c);
+  if (env->non_local_exit_check(env) == emacs_funcall_exit_return)
+    {
+      WebKitUserContentManager *ucm =
+        webkit_web_view_get_user_content_manager (c->view);
+      webkit_user_content_manager_remove_all_style_sheets (ucm);
+    }
+  return Qnil;
+}
+static emacs_value
 webkitgtk_add_user_script (emacs_env *env, ptrdiff_t n,
                            emacs_value *args, void *ptr)
 {
@@ -461,6 +537,23 @@ webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
 }
 
 static void
+webview_notify_load_progress (WebKitWebView *webview, GParamSpec *pspec, Client *c)
+{
+  gdouble prog = 100.0 * webkit_web_view_get_estimated_load_progress(webview);
+  char buf[G_ASCII_DTOSTR_BUF_SIZE];
+  send_to_lisp (c, "webkitgtk--callback-progress",
+                g_ascii_dtostr (buf, sizeof (buf), prog));
+}
+
+static void
+webview_notify_uri (WebKitWebView *webview, GParamSpec *pspec, Client *c)
+{
+  const gchar *uri = util_sanitize_uri(webkit_web_view_get_uri(webview));
+  if (uri != NULL)
+    send_to_lisp (c, "webkitgtk--callback-uri", uri);
+}
+
+static void
 webview_notify_title (WebKitWebView *webview, GParamSpec *pspec, Client *c)
 {
   const gchar *title = webkit_web_view_get_title(webview);
@@ -578,6 +671,10 @@ webkitgtk_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
                     G_CALLBACK (webview_key_press_event), c);
   g_signal_connect (G_OBJECT (c->view), "notify::title",
                     G_CALLBACK (webview_notify_title), c);
+  g_signal_connect (G_OBJECT (c->view), "notify::uri",
+                    G_CALLBACK (webview_notify_uri), c);
+  g_signal_connect (G_OBJECT (c->view), "notify::estimated-load-progress",
+                    G_CALLBACK (webview_notify_load_progress), c);
   g_signal_connect (G_OBJECT (c->view), "decide-policy",
                     G_CALLBACK (webview_decide_policy), c);
   g_signal_connect(webkit_web_view_get_context(c->view), "download-started",
@@ -654,11 +751,23 @@ emacs_module_init(struct emacs_runtime *ert)
   fun = env->make_function(env, 2, 2, webkitgtk_set_zoom, "", NULL);
   bind_function(env, "webkitgtk--set-zoom", fun);
 
+  fun = env->make_function(env, 1, 1, webkitgtk_get_title, "", NULL);
+  bind_function(env, "webkitgtk--get-title", fun);
+
+  fun = env->make_function(env, 1, 1, webkitgtk_get_uri, "", NULL);
+  bind_function(env, "webkitgtk--get-uri", fun);
+
   fun = env->make_function(env, 2, 2, webkitgtk_load_uri, "", NULL);
   bind_function(env, "webkitgtk--load-uri", fun);
 
   fun = env->make_function(env, 2, 3, webkitgtk_execute_js, "", NULL);
   bind_function(env, "webkitgtk--execute-js", fun);
+
+  fun = env->make_function(env, 2, 4, webkitgtk_add_user_style, "", NULL);
+  bind_function(env, "webkitgtk--add-user-style", fun);
+
+  fun = env->make_function(env, 1, 1, webkitgtk_remove_all_user_styles, "", NULL);
+  bind_function(env, "webkitgtk--remove-all-user-styles", fun);
 
   fun = env->make_function(env, 2, 4, webkitgtk_add_user_script, "", NULL);
   bind_function(env, "webkitgtk--add-user-script", fun);
