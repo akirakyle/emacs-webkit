@@ -1,11 +1,11 @@
 CFLAGS   = -std=c99 -Wall -Wextra -Wno-unused-parameter -O3 -g -fpic `pkg-config --cflags gtk+-3.0 webkit2gtk-4.0 --libs webkit2gtk-4.0`
 
-all : webkitgtk-module.so
+all : webkit-module.so
 
-webkitgtk-module.so : webkitgtk-module.c
+webkit-module.so : webkit-module.c
 	$(CC) -shared $(CFLAGS) -o $@ $^
 
 clean :
-	$(RM) webkitgtk-module.so
+	$(RM) webkit-module.so
 
 .PHONY : clean all

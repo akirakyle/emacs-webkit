@@ -5,44 +5,44 @@
     (copy-file module tmpfile t)
     (module-load tmpfile)))
 
-(fake-module-reload (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so"))
-;;(module-load (expand-file-name "~/git/emacs-webkitgtk/webkitgtk-module.so"))
+(fake-module-reload (expand-file-name "~/git/emacs-webkit/webkit-module.so"))
+;;(module-load (expand-file-name "~/git/emacs-webkit/webkit-module.so"))
 ;;(setq debug-on-error t)
 
-(add-to-list 'load-path (expand-file-name "~/git/emacs-webkitgtk"))
+(add-to-list 'load-path (expand-file-name "~/git/emacs-webkit"))
 
-(require 'webkitgtk)
-(require 'evil-collection-webkitgtk)
+(require 'webkit)
+(require 'evil-collection-webkit)
 
 (evil-collection-xwidget-setup)
 
-(webkitgtk-browse-url "http://xkcd.com" t)
-(setq webkitgtk-search-prefix "https://google.com/search?q=")
-(setq webkitgtk-own-window t)
+(webkit-browse-url "http://xkcd.com" t)
+(setq webkit-search-prefix "https://google.com/search?q=")
+(setq webkit-own-window t)
 
-;;(setq my-pipe (get-buffer-process (cdr (car webkitgtk--id-buffer-alist))))
-(with-current-buffer (car webkitgtk--buffers) (buffer-string))
-(setq webkitgtk--id (with-current-buffer (car webkitgtk--buffers) webkitgtk--id))
+;;(setq my-pipe (get-buffer-process (cdr (car webkit--id-buffer-alist))))
+(with-current-buffer (car webkit--buffers) (buffer-string))
+(setq webkit--id (with-current-buffer (car webkit--buffers) webkit--id))
 
-(webkitgtk--execute-js webkitgtk--id "alert(\"hi\")")
-(webkitgtk--execute-js webkitgtk--id "\"hi\"" "message")
-(webkitgtk--add-user-script webkitgtk--id "alert(\"hi\")")
-(webkitgtk--remove-all-user-scripts webkitgtk--id)
-(webkitgtk--register-script-message webkitgtk--id "message")
-(webkitgtk--unregister-script-message webkitgtk--id "message")
+(webkit--execute-js webkit--id "alert(\"hi\")")
+(webkit--execute-js webkit--id "\"hi\"" "message")
+(webkit--add-user-script webkit--id "alert(\"hi\")")
+(webkit--remove-all-user-scripts webkit--id)
+(webkit--register-script-message webkit--id "message")
+(webkit--unregister-script-message webkit--id "message")
 
-;(webkitgtk--register-script-message webkitgtk--id "webkitgtk--callback-key-down")
+;(webkit--register-script-message webkit--id "webkit--callback-key-down")
 
-(webkitgtk--execute-js webkitgtk--id
+(webkit--execute-js webkit--id
                        "window.webkit.messageHandlers.message.postMessage(\"hi\")")
 
-(webkitgtk--execute-js webkitgtk--id
-                       "window.webkit.messageHandlers[\"webkitgtk--callback-key-down\"].postMessage(\"hi\")"
+(webkit--execute-js webkit--id
+                       "window.webkit.messageHandlers[\"webkit--callback-key-down\"].postMessage(\"hi\")"
                        "message")
-(setq webkitgtk--id nil)
+(setq webkit--id nil)
 (garbage-collect)
 
-(remove-hook 'window-size-change-functions #'webkitgtk--adjust-size)
-(webkitgtk--show webkitgtk--id)
+(remove-hook 'window-size-change-functions #'webkit--adjust-size)
+(webkit--show webkit--id)
 
-(webkitgtk--resize webkitgtk--id 50 50 200 400)
+(webkit--resize webkit--id 50 50 200 400)
