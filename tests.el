@@ -1,14 +1,4 @@
-(defun fake-module-reload (module)
-  (interactive "Reload Module file: ")
-  (let ((tmpfile (make-temp-file
-                  (file-name-nondirectory module) nil module-file-suffix)))
-    (copy-file module tmpfile t)
-    (module-load tmpfile)))
-
-(fake-module-reload (expand-file-name "~/git/emacs-webkit/webkit-module.so"))
-;;(module-load (expand-file-name "~/git/emacs-webkit/webkit-module.so"))
 ;;(setq debug-on-error t)
-
 (add-to-list 'load-path (expand-file-name "~/git/emacs-webkit"))
 
 (require 'webkit)
@@ -63,3 +53,5 @@
           :initial-input "default"
           :action (lambda (v)
                     (setq result (if (consp v) (cdr v) v))))
+
+(completing-read "prompt" (list (list "c" 1) (list "b" 2) (list "a" 3) (list "d" 4)))

@@ -239,6 +239,9 @@ If N is omitted or nil, scroll backwards by one char."
   (message "C-g pressed in webkit... exiting insert mode")
   (webkit--unfocus webkit--id))
 
+(defun webkit--load-finished (msg)
+  (run-hooks 'webkit-load-finished-hook))
+
 (defun webkit--callback-title (title)
   (run-hook-with-args 'webkit-title-changed-functions title))
 
@@ -352,6 +355,8 @@ current session."
                                webkit--id))
                          url)))
 
+(require 'webkit-history)
+
 (defun webkit (url &optional arg)
   "Fetch URL and render the page.
 If the input doesn't look like an URL or a domain name, the
@@ -361,9 +366,7 @@ If called with a prefix ARG, create a new webkit buffer instead of reusing
 the default webkit buffer."
   (interactive
    (let ((prompt "URL or keywords: "))
-     (list ;;(if (require 'webkit-history nil t)
-           ;;    (webkit-history-completing-read prompt "")
-             (read-string prompt nil 'eww-prompt-history "")
+     (list (webkit-history-completing-read prompt)
            (prefix-numeric-value current-prefix-arg))))
   (let ((eww-search-prefix webkit-search-prefix))
     (webkit-browse-url (eww--dwim-expand-url url) (eq arg 4))))

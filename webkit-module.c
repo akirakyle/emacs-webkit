@@ -535,10 +535,9 @@ webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
 }
 */
 
-/*
 static void
 webview_load_changed (WebKitWebView  *webview, WebKitLoadEvent load_event,
-                      gpointer data)
+                      Client *c)
 {
   switch (load_event) {
   case WEBKIT_LOAD_STARTED:
@@ -548,10 +547,10 @@ webview_load_changed (WebKitWebView  *webview, WebKitLoadEvent load_event,
   case WEBKIT_LOAD_COMMITTED:
     break;
   case WEBKIT_LOAD_FINISHED:
+    send_to_lisp (c, "webkit--load-finished", "");
     break;
   }
 }
-*/
 
 static void
 webview_notify_load_progress (WebKitWebView *webview, GParamSpec *pspec, Client *c)
@@ -824,8 +823,8 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
                     G_CALLBACK(webview_close), c);
   //g_signal_connect (G_OBJECT (c->view), "key-press-event",
   //                  G_CALLBACK (webview_key_press_event), c);
-  //g_signal_connect (G_OBJECT (c->view), "load-changed",
-  //                  G_CALLBACK (webview_load_changed), c);
+  g_signal_connect (G_OBJECT (c->view), "load-changed",
+                    G_CALLBACK (webview_load_changed), c);
   g_signal_connect (G_OBJECT (c->view), "notify::title",
                     G_CALLBACK (webview_notify_title), c);
   g_signal_connect (G_OBJECT (c->view), "notify::uri",
