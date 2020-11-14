@@ -41,6 +41,10 @@
 (declare-function webkit--get-title "webkit-module")
 (declare-function webkit--get-uri "webkit-module")
 (declare-function webkit--load-uri "webkit-module")
+(declare-function webkit--search "webkit-module")
+(declare-function webkit--search-finish "webkit-module")
+(declare-function webkit--search-next "webkit-module")
+(declare-function webkit--search-previous "webkit-module")
 (declare-function webkit--execute-js "webkit-module")
 (declare-function webkit--add-user-style "webkit-module")
 (declare-function webkit--remove-all-user-styles "webkit-module")
@@ -205,6 +209,26 @@ If N is omitted or nil, scroll backwards by one char."
   "Reload current URL."
   (interactive)
   (webkit--reload (or webkit-id webkit--id)))
+
+(defun webkit-search (query &optional webkit-id)
+  "Search in webkit for QUERY."
+  (interactive (list (read-string "Query: ") nil))
+  (webkit--search (or webkit-id webkit--id) query))
+
+(defun webkit-search-finish (&optional webkit-id)
+  "Stop highlighting search results in webkit."
+  (interactive)
+  (webkit--search-finish (or webkit-id webkit--id)))
+
+(defun webkit-search-next (&optional webkit-id)
+  "Go to next search result in webkit."
+  (interactive)
+  (webkit--search-next (or webkit-id webkit--id)))
+
+(defun webkit-search-previous (&optional webkit-id)
+  "Go to previous search result in webkit."
+  (interactive)
+  (webkit--search-previous (or webkit-id webkit--id)))
 
 (defun webkit-insert-mode (&optional webkit-id)
   (interactive)

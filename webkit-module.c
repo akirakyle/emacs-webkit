@@ -195,6 +195,54 @@ webkit_unfocus (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 }
 
 static emacs_value
+webkit_search (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  size_t size;
+  char *text = NULL;
+  if ((c != NULL) && copy_string_contents (env, args[1], &text, &size))
+    webkit_find_controller_search (webkit_web_view_get_find_controller(c->view),
+                                   text,
+                                   ((n > 2) && env->is_not_nil (env, args[2])) ?
+                                   WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE :
+                                   WEBKIT_FIND_OPTIONS_NONE,
+                                   G_MAXUINT);
+
+  free (text);
+  return Qnil;
+}
+
+static emacs_value
+webkit_search_finish (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    webkit_find_controller_search_finish
+      (webkit_web_view_get_find_controller(c->view));
+  return Qnil;
+}
+
+static emacs_value
+webkit_search_next (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    webkit_find_controller_search_next
+      (webkit_web_view_get_find_controller(c->view));
+  return Qnil;
+}
+
+static emacs_value
+webkit_search_previous (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    webkit_find_controller_search_previous
+      (webkit_web_view_get_find_controller(c->view));
+  return Qnil;
+}
+
+static emacs_value
 webkit_resize (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
   Client *c = get_client(env, args[0]);
@@ -509,9 +557,9 @@ static void
 webview_notify_load_progress (WebKitWebView *webview, GParamSpec *pspec, Client *c)
 {
   gdouble prog = 100.0 * webkit_web_view_get_estimated_load_progress (webview);
-  char buf[G_ASCII_DTOSTR_BUF_SIZE];
-  send_to_lisp (c, "webkit--callback-progress",
-                g_ascii_dtostr (buf, sizeof (buf), prog));
+  gchar *buf = g_strdup_printf("%f", prog);
+  send_to_lisp (c, "webkit--callback-progress", buf);
+  g_free (buf);
 }
 
 static void
@@ -529,6 +577,15 @@ webview_notify_title (WebKitWebView *webview, GParamSpec *pspec, Client *c)
 
   if (title != NULL)
     send_to_lisp (c, "webkit--callback-title", title);
+}
+
+static void
+findcontroller_counted_matches(WebKitFindController *finder,
+                               guint count, Client *c)
+{
+  gchar *buf = g_strdup_printf("%d", count);
+  send_to_lisp (c, "webkit--counted-matches", buf);
+  g_free (buf);
 }
 
 static void
@@ -779,6 +836,9 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
                     G_CALLBACK (webview_decide_policy), c);
   g_signal_connect(webkit_web_view_get_context(c->view), "download-started",
                    G_CALLBACK(webcontext_download_started), c);
+  g_signal_connect(webkit_web_view_get_find_controller(c->view),
+                   "counted-matches",
+                   G_CALLBACK(findcontroller_counted_matches), c);
 
   /* webkit uses GSubprocess which sets sigaction causing emacs to not catch
      SIGCHLD with it's usual handle setup in catch_child_signal().
@@ -864,6 +924,18 @@ emacs_module_init(struct emacs_runtime *ert)
 
   fun = env->make_function(env, 2, 2, webkit_load_uri, "", NULL);
   bind_function(env, "webkit--load-uri", fun);
+
+  fun = env->make_function(env, 2, 2, webkit_search, "", NULL);
+  bind_function(env, "webkit--search", fun);
+
+  fun = env->make_function(env, 1, 1, webkit_search_finish, "", NULL);
+  bind_function(env, "webkit--search-finish", fun);
+
+  fun = env->make_function(env, 1, 1, webkit_search_next, "", NULL);
+  bind_function(env, "webkit--search-next", fun);
+
+  fun = env->make_function(env, 1, 1, webkit_search_previous, "", NULL);
+  bind_function(env, "webkit--search-previous", fun);
 
   fun = env->make_function(env, 2, 3, webkit_execute_js, "", NULL);
   bind_function(env, "webkit--execute-js", fun);
