@@ -9,7 +9,7 @@ function WKViewHasFocus() {
 }
 function WKViewKeyDown(event) {
   if (event.ctrlKey && event.key == 'g') {
-    window.webkit.messageHandlers["webkitgtk--callback-key-down"].postMessage('C-g');
+    window.webkit.messageHandlers["webkitgtk--callback-c-g"].postMessage('');
   }
 }
 document.addEventListener('keydown', WKViewKeyDown);

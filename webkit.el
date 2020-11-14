@@ -106,20 +106,14 @@ webkit-new is run in order for embedding to work."
 (defun webkit-zoom-in (&optional webkit-id)
   "Increase webkit view zoom factor."
   (interactive)
-  (webkit--set-zoom
-   (or webkit-id webkit--id)
-   (+ (webkit--get-zoom
-       (or webkit-id webkit--id))
-      0.1)))
+  (webkit--set-zoom (or webkit-id webkit--id)
+                    (+ (webkit--get-zoom (or webkit-id webkit--id)) 0.1)))
 
 (defun webkit-zoom-out (&optional webkit-id)
   "Decrease webkit view zoom factor."
   (interactive)
-  (webkit--set-zoom
-   (or webkit-id webkit--id)
-   (+ (webkit--get-zoom
-       (or webkit-id webkit--id))
-      -0.1)))
+  (webkit--set-zoom (or webkit-id webkit--id)
+                    (+ (webkit--get-zoom (or webkit-id webkit--id)) -0.1)))
 
 (defun webkit-scroll-up (&optional arg webkit-id)
   "Scroll webkit up by ARG pixels; or full window height if no ARG.
@@ -132,7 +126,7 @@ Negative ARG scrolls down."
    (format "window.scrollBy(0, %d);"
            (or arg (pcase-let ((`(,left ,top ,right ,bottom)
                                 (window-inside-pixel-edges (selected-window))))
-                    (- bottom top))))))
+                     (- bottom top))))))
 
 (defun webkit-scroll-down (&optional arg webkit-id)
   "Scroll webkit down by ARG pixels; or full window height if no ARG.
@@ -214,52 +208,35 @@ If N is omitted or nil, scroll backwards by one char."
 
 (defun webkit-insert-mode (&optional webkit-id)
   (interactive)
+  (message "Entering webkit insert mode, press C-g to exit")
   (webkit--focus (or webkit-id webkit--id)))
 
-(defun webkit-ace-toggle-callback (msg)
-  (message msg))
-
-(defun webkit-ace (&optional webkit-id)
-  "Start a webkit ace jump."
-  (interactive)
-  (webkit--execute-js
-   (or webkit-id webkit--id)
-   "webkitHints();" "webkit-ace-toggle-callback"))
-
-(defun webkit--file-to-string (filename)
-  (with-temp-buffer
-    (insert-file-contents filename)
-    (buffer-string)))
-
-(defun webkit--callback-key-down (val)
-  (message val)
+(defun webkit--callback-c-g (val)
+  (message "C-g pressed in webkit... exiting insert mode")
   (webkit--unfocus webkit--id))
 
 (defun webkit--callback-title (title)
+  (run-hook-with-args 'webkit-title-changed-functions title))
+
+(defun webkit--callback-uri (uri)
+  (run-hook-with-args 'webkit-uri-changed-functions uri))
+
+(defun webkit--callback-progress (progress)
+  (run-hook-with-args 'webkit-progress-changed-functions progress))
+
+(defun webkit--callback-new-view (uri)
+  (webkit-new uri))
+
+(defun webkit--callback-download-request (uri)
+  (message "TODO: implement download request for %s" uri))
+
+(defun webkit-rename-buffer (title)
   (if (string= "" title)
       (let ((uri (webkit--get-uri webkit--id)))
         (if (string= "" uri)
             (rename-buffer "*webkit*" t)
           (rename-buffer uri t)))
     (rename-buffer title t)))
-
-(defun webkit--callback-uri (uri)
-  (unless (string= "" uri)
-    (message uri)
-    ))
-
-(defun webkit--callback-progress (progress)
-  (message "%s%%" progress))
-
-(defun webkit--callback-new-view (uri)
-  (webkit-new uri))
-
-(defun webkit--callback-download-request (uri)
-  (message "TODO: download request for %s" uri))
-
-(defun webkit--close (msg)
-  (set-process-query-on-exit-flag (get-buffer-process (current-buffer)) nil)
-  (kill-this-buffer))
 
 (defun webkit--filter (proc string)
   (when (buffer-live-p (process-buffer proc))
@@ -291,11 +268,20 @@ If N is omitted or nil, scroll backwards by one char."
               (dolist (window (cdr windows))
                 (switch-to-prev-buffer window))))))))
 
+(defun webkit--close (msg)
+  (set-process-query-on-exit-flag (get-buffer-process (current-buffer)) nil)
+  (kill-this-buffer))
+
 (defun webkit--kill-buffer ()
   (when (eq major-mode 'webkit-mode)
     ;;(webkit--hide webkit--id)
     (webkit--destroy webkit--id)
     (setq webkit--buffers (delq (current-buffer) webkit--buffers))))
+
+(defun webkit--file-to-string (filename)
+  (with-temp-buffer
+    (insert-file-contents filename)
+    (buffer-string)))
 
 (setq webkit--script (webkit--file-to-string
                          (expand-file-name "script.js" webkit-base)))
@@ -319,7 +305,7 @@ Returns the newly created webkit buffer"
                            webkit-own-window))
       (push buffer webkit--buffers)
       (webkit--register-script-message
-       webkit--id "webkit--callback-key-down")
+       webkit--id "webkit--callback-c-g")
       (webkit--add-user-script webkit--id webkit--script)
       (webkit--add-user-style webkit--id webkit--style)
       (when url (webkit--load-uri webkit--id url))
@@ -369,6 +355,7 @@ the default webkit buffer."
   (add-hook 'window-size-change-functions #'webkit--adjust-size))
 ;;(remove-hook 'window-size-change-functions #'webkit--adjust-size)
 
+(add-hook 'webkit-title-changed-functions 'webkit-rename-buffer)
 (add-hook 'kill-buffer-hook #'webkit--kill-buffer)
 
 (provide 'webkit)
