@@ -60,7 +60,7 @@ get_client (emacs_env *env, emacs_value value)
 {
   Client *c = (Client *)env->get_user_ptr(env, value);
   if ((env->non_local_exit_check(env) == emacs_funcall_exit_return)
-      && c->container != NULL)
+      && c->container != NULL && c->view != NULL)
     return c;
   return NULL;
 }
@@ -121,7 +121,8 @@ webkit_get_title (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   if (c != NULL)
     {
       const gchar *title = webkit_web_view_get_title (c->view);
-      return env->make_string (env, title, strlen (title));
+      if (title != NULL)
+        return env->make_string (env, title, strlen (title));
     }
   return Qnil;
 }
@@ -343,6 +344,7 @@ webkit_execute_js (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
     {
       if ((n == 3) && copy_string_contents (env, args[2], &id, &size))
         {
+          printf ("executing %p script: %s id: %s\n", c, script, id);
           Callback *cb = malloc (sizeof (Callback));
           cb->c = c;
           cb->id = id;
@@ -351,6 +353,7 @@ webkit_execute_js (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
         }
       else
         {
+          printf ("executing %p script: %s id: %s\n", c, script, id);
           webkit_web_view_run_javascript (c->view, script, NULL, NULL, NULL);
         }
     }
@@ -703,12 +706,14 @@ webkit_destroy (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
     {
       //gtk_container_remove (GTK_CONTAINER (c->container), GTK_WIDGET (c->view));
       gtk_widget_destroy (GTK_WIDGET (c->view));
+      printf("destroyed c->view\n");
       if (GTK_IS_WINDOW(c->container))
         gtk_widget_destroy (c->container);
 
       c->container = NULL;
       c->view = NULL;
     }
+  printf("returning...\n");
   return Qnil;
 }
 
@@ -839,6 +844,11 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
                    "counted-matches",
                    G_CALLBACK(findcontroller_counted_matches), c);
 
+  webkit_settings_set_enable_write_console_messages_to_stdout
+    (webkit_web_view_get_settings (c->view), true);
+  // https://bugs.webkit.org/show_bug.cgi?id=200856
+  webkit_settings_set_hardware_acceleration_policy
+    (webkit_web_view_get_settings (c->view), WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
   /* webkit uses GSubprocess which sets sigaction causing emacs to not catch
      SIGCHLD with it's usual handle setup in catch_child_signal().
      This resets the SIGCHLD sigaction */

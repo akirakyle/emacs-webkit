@@ -119,31 +119,38 @@ webkit-new is run in order for embedding to work."
   (webkit--set-zoom (or webkit-id webkit--id)
                     (+ (webkit--get-zoom (or webkit-id webkit--id)) -0.1)))
 
-(defun webkit-scroll-up (&optional arg webkit-id)
-  "Scroll webkit up by ARG pixels; or full window height if no ARG.
-Stop if bottom of page is reached.
+(defun webkit-scroll-by-pixels (arg &optional webkit-id)
+  "Scroll webkit up by ARG pixels.
+
+Stops if bottom of page is reached.
 Interactively, ARG is the prefix numeric argument.
 Negative ARG scrolls down."
   (interactive "P")
-  (webkit--execute-js
-   (or webkit-id webkit--id)
-   (format "window.scrollBy(0, %d);"
-           (or arg (pcase-let ((`(,left ,top ,right ,bottom)
-                                (window-inside-pixel-edges (selected-window))))
-                     (- bottom top))))))
+  (webkit--execute-js (or webkit-id webkit--id)
+                      (format "window.scrollBy(0, %d);" arg)))
 
-(defun webkit-scroll-down (&optional arg webkit-id)
-  "Scroll webkit down by ARG pixels; or full window height if no ARG.
-Stop if top of page is reached.
+(defun webkit-scroll-by-percent (arg &optional webkit-id)
+  "Scroll webkit up by ARG percent.
+
+Stops if bottom of page is reached.
 Interactively, ARG is the prefix numeric argument.
-Negative ARG scrolls up."
+Negative ARG scrolls down."
   (interactive "P")
-  (webkit--execute-js
-   (or webkit-id webkit--id)
-   (format "window.scrollBy(0, -%d);"
-           (or arg (pcase-let ((`(,left ,top ,right ,bottom)
-                                (window-inside-pixel-edges (selected-window))))
-                     (- bottom top))))))
+  (pcase-let ((`(,left ,top ,right ,bottom)
+               (window-inside-pixel-edges (selected-window))))
+    (webkit--execute-js (or webkit-id webkit--id)
+                        (format "window.scrollBy(0, %d);"
+                                (* arg (- bottom top))))))
+
+(defun webkit-scroll-up (&optional webkit-id)
+  "Scroll webkit up by full window height."
+  (interactive)
+  (webkit-scroll-by-percent 1))
+
+(defun webkit-scroll-down (&optional webkit-id)
+  "Scroll webkit down by full window height."
+  (interactive)
+  (webkit-scroll-by-percent -1))
 
 (defun webkit-scroll-up-line (&optional n webkit-id)
   "Scroll webkit up by N lines.
@@ -151,7 +158,7 @@ The height of line is calculated with `window-font-height'.
 Stop if the bottom edge of the page is reached.
 If N is omitted or nil, scroll up by one line."
   (interactive "p")
-  (webkit-scroll-up (* n (window-font-height))))
+  (webkit-scroll-by-pixels (* n (window-font-height))))
 
 (defun webkit-scroll-down-line (&optional n webkit-id)
   "Scroll webkit down by N lines.
@@ -159,7 +166,7 @@ The height of line is calculated with `window-font-height'.
 Stop if the top edge of the page is reached.
 If N is omitted or nil, scroll down by one line."
   (interactive "p")
-  (webkit-scroll-down (* n (window-font-height))))
+  (webkit-scroll-by-pixels (* (* -1 n) (window-font-height))))
 
 (defun webkit-scroll-forward (&optional n webkit-id)
   "Scroll webkit horizontally by N chars.
@@ -338,6 +345,7 @@ Returns the newly created webkit buffer"
       (when url (webkit--load-uri webkit--id url))
       (when (fboundp 'posframe-delete-all)
         (posframe-delete-all)) ;; hack necessary to get correct z-ordering
+      (run-hooks 'webkit-new-hook)
       (switch-to-buffer buffer))))
 
 (require 'browse-url)

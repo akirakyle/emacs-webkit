@@ -37,7 +37,9 @@
                 (gethash (cdr k1) webkit-history-table))
                (webkit-history-item-visit-count
                 (gethash (cdr k2) webkit-history-table)))))
-    (completing-read prompt completions)))
+    (let* ((completion (completing-read prompt completions))
+           (uri (cdr (assoc completion completions))))
+      (if uri uri completion))))
 
 (defun webkit-history-add-item (item)
   (let* ((uri (webkit-history-item-uri item))
@@ -53,9 +55,10 @@
                    :title (webkit--get-title webkit--id)
                    :uri (webkit--get-uri webkit--id)
                    :last-time (time-convert (current-time) 'integer))))
+    (unless (string= (webkit-history-item-uri new-item) "about:blank")
       (webkit-history-add-item new-item)
       (append-to-file (format "%S\n" (webkit-history-item-serialize new-item))
-                      nil webkit-history-filename)))
+                      nil webkit-history-filename))))
 
 (defun webkit-history-load ()
   (with-current-buffer (find-file-noselect webkit-history-filename)

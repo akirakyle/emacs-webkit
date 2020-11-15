@@ -9,11 +9,17 @@
 (webkit-browse-url "http://xkcd.com" t)
 (setq webkit-search-prefix "https://google.com/search?q=")
 (setq webkit-own-window t)
+(garbage-collect)
 
 ;;(setq my-pipe (get-buffer-process (cdr (car webkit--id-buffer-alist))))
 (with-current-buffer (car webkit--buffers) (buffer-string))
 (setq webkit--id (with-current-buffer (car webkit--buffers) webkit--id))
+(setq webkit--id nil)
 
+(setq webkit--script (webkit--file-to-string
+                         (expand-file-name "script.js" webkit-base)))
+(webkit--execute-js webkit--id
+                    "webkitHints('aoeuhtns');" "message")
 (webkit--execute-js webkit--id "alert(\"hi\")")
 (webkit--execute-js webkit--id "\"hi\"" "message")
 (webkit--add-user-script webkit--id "alert(\"hi\")")
@@ -21,16 +27,12 @@
 (webkit--register-script-message webkit--id "message")
 (webkit--unregister-script-message webkit--id "message")
 
-;(webkit--register-script-message webkit--id "webkit--callback-key-down")
+(webkit--execute-js webkit--id
+                    "window.webkit.messageHandlers.message.postMessage(\"hi\")")
 
 (webkit--execute-js webkit--id
-                       "window.webkit.messageHandlers.message.postMessage(\"hi\")")
-
-(webkit--execute-js webkit--id
-                       "window.webkit.messageHandlers[\"webkit--callback-key-down\"].postMessage(\"hi\")"
-                       "message")
-(setq webkit--id nil)
-(garbage-collect)
+                    "window.webkit.messageHandlers[\"webkit--callback-key-down\"].postMessage(\"hi\")"
+                    "message")
 
 (defun webkit--echo-uri (uri)
   (message uri))
@@ -47,11 +49,3 @@
 (webkit--show webkit--id)
 
 (webkit--resize webkit--id 50 50 200 400)
-
-
-(ivy-read "read me" (list "a" "b" "c" "d")
-          :initial-input "default"
-          :action (lambda (v)
-                    (setq result (if (consp v) (cdr v) v))))
-
-(completing-read "prompt" (list (list "c" 1) (list "b" 2) (list "a" 3) (list "d" 4)))

@@ -15,8 +15,19 @@ function WKViewKeyDown(event) {
 document.addEventListener('keydown', WKViewKeyDown);
 
 window.__webkit_hints = [];
-function webkitHints() {
-  function webkitAddHint(elem) {
+function webkitHints(hintKeys) {
+  let N = hintKeys.length
+  let tags = 'button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])';
+  let elems = document.querySelectorAll(tags)
+  let hintPadLen = Math.ceil(Math.log(elems.length)/Math.log(N))
+
+  function idxToHintChars(idx) {
+    return idx.toString(N).padStart(hintPadLen, '0').split('').map(
+      function (digit) {
+        return hintKeys.charAt(parseInt(digit, N));
+      }).join('');
+  }
+  function webkitAddHint(elem, idx) {
     let bounding = elem.getBoundingClientRect();
     if (bounding.top >= 0 &&
         bounding.left >= 0 &&
@@ -29,7 +40,9 @@ function webkitHints() {
             other_bounding = other_overlay.getBoundingClientRect();
             return !(Math.abs(other_bounding.top - bounding.top) < 5
                      && Math.abs(other_bounding.left - bounding.left) < 5)
-          })){
+          })
+       ){
+      console.log("new new new "+idx);
       let overlay = document.createElement('div');
       overlay.className = 'emacs-hint-label';
       overlay.style.position = 'fixed';
@@ -37,26 +50,10 @@ function webkitHints() {
       overlay.style.top = bounding.top + 'px';
       document.body.appendChild(overlay);
       window.__webkit_hints.push([overlay, elem]);
+      overlay.appendChild(document.createTextNode(idxToHintChars(idx)));
     };
   }
-  let elems = 'button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])';
-  document.querySelectorAll(elems).forEach(webkitAddHint);
-  let label_length = Math.ceil(Math.log(window.__webkit_hints.length)/Math.log(26));
-  window.__webkit_hints.forEach(
-    function (candidate, id) {
-      let elem = candidate[0];
-      elem.appendChild(document.createTextNode(
-        id.toString(26).split('').map(
-          function (char) {
-            let code = char.charCodeAt(0);
-            if (code < 97) {
-              return String.fromCharCode(code + 49);
-            }
-            else {
-              return String.fromCharCode(code + 10);
-            }
-          }).join('').padStart(label_length,'a')));
-    });
+  elems.forEach(webkitAddHint);
   return window.__webkit_hints.length;
 }
 // Local Variables:
