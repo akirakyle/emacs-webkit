@@ -242,7 +242,7 @@ If N is omitted or nil, scroll backwards by one char."
   (message "Entering webkit insert mode, press C-g to exit")
   (webkit--focus (or webkit-id webkit--id)))
 
-(defun webkit--callback-c-g (val)
+(defun webkit--callback-unfocus (val)
   (message "C-g pressed in webkit... exiting insert mode")
   (webkit--unfocus webkit--id))
 
@@ -339,7 +339,7 @@ Returns the newly created webkit buffer"
                            webkit-own-window))
       (push buffer webkit--buffers)
       (webkit--register-script-message
-       webkit--id "webkit--callback-c-g")
+       webkit--id "webkit--callback-unfocus")
       (webkit--add-user-script webkit--id webkit--script)
       (webkit--add-user-style webkit--id webkit--style)
       (when url (webkit--load-uri webkit--id url))
