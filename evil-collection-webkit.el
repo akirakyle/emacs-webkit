@@ -39,9 +39,11 @@
   (interactive)
   (webkit-scroll-by-percent -0.5))
 
-
 (defun evil-collection-webkit-insert-on-insert ()
   (add-hook 'evil-insert-state-entry-hook 'webkit-insert-mode nil t))
+
+(defun evil-collection-webkit-unfocus-to-normal-mode (val)
+  (evil-normal-state))
 
 ;;;###autoload
 (defun evil-collection-xwidget-setup ()
@@ -71,7 +73,8 @@
     "gu" 'webkit
     "gg" 'webkit-scroll-top
     "G" 'webkit-scroll-bottom
-    "y" 'webkit-copy-selection-as-kill)
+    "y" 'webkit-copy-selection
+    "Y" 'webkit-copy-url)
 
   (when evil-want-C-d-scroll
     (evil-collection-define-key 'normal 'webkit-mode-map
@@ -80,8 +83,12 @@
     (evil-collection-define-key 'normal 'webkit-mode-map
       (kbd "C-u") 'webkit-scroll-down-half))
 
-  (add-hook 'webkit-mode-hook 'evil-collection-webkit-insert-on-insert)
+  (add-hook 'webkit-mode-hook #'evil-collection-webkit-insert-on-insert)
+  (advice-add 'webkit--callback-unfocus
+              :after #'evil-collection-webkit-unfocus-to-normal-mode)
   )
+
+;; add advice around  to go back to normal mode
 
 (provide 'evil-collection-webkit)
 ;;; evil-collection-webkit.el ends here

@@ -234,12 +234,29 @@ webkit_search_next (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 }
 
 static emacs_value
-webkit_search_previous (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+webkit_search_previous (emacs_env *env, ptrdiff_t n,
+                        emacs_value *args, void *ptr)
 {
   Client *c = get_client (env, args[0]);
   if (c != NULL)
     webkit_find_controller_search_previous
       (webkit_web_view_get_find_controller(c->view));
+  return Qnil;
+}
+
+static emacs_value
+webkit_start_web_inspector (emacs_env *env, ptrdiff_t n,
+                            emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    {
+      WebKitSettings *settings = webkit_web_view_get_settings (c->view);
+      g_object_set (G_OBJECT(settings), "enable-developer-extras", TRUE, NULL);
+
+      WebKitWebInspector *inspector = webkit_web_view_get_inspector (c->view);
+      webkit_web_inspector_show (inspector);
+    }
   return Qnil;
 }
 
@@ -945,6 +962,9 @@ emacs_module_init(struct emacs_runtime *ert)
 
   fun = env->make_function(env, 1, 1, webkit_search_previous, "", NULL);
   bind_function(env, "webkit--search-previous", fun);
+
+  fun = env->make_function(env, 1, 1, webkit_start_web_inspector, "", NULL);
+  bind_function(env, "webkit--start-web-inspector", fun);
 
   fun = env->make_function(env, 2, 3, webkit_execute_js, "", NULL);
   bind_function(env, "webkit--execute-js", fun);

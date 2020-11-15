@@ -1,14 +1,17 @@
-.webkit-view-hint
+*[webkitviewhint^='hint']
 {
+    all: initial;
     z-index: 2147483647;
     position:fixed !important;
     opacity: 0.7;
     border:1px solid #444;
     color: red;
     background-color: yellow;
-    font-family: monospace;
-    font: bold .8em monospace;
-    font-size: 2em;
-    margin:0;
-    padding:0px 1px;
+    /*
+    font-family: monospace !important;
+    font-size: 2em !important;
+   */
+    font: bold 20px monospace !important;
+    margin: 0;
+    padding: 0px 1px;
 }

@@ -17,13 +17,21 @@ var __WKViewHints = Object.freeze((function(){
           })
        ){
       let hint = document.createElement('div');
-      hint.className = 'webkit-view-hint';
+      hint.setAttribute('webkitviewhint', 'hint');
       hint.style.left = bounding.left + 'px';
       hint.style.top = bounding.top + 'px';
       elem.appendChild(hint);
       hint.appendChild(document.createTextNode(hintText));
       hints.push(hint);
     }
+  }
+
+  function cleanup(event) {
+    console.log("cleaning up");
+    hints.forEach(hint => hint.remove());
+    document.removeEventListener('keydown', readKey);
+    window.webkit.messageHandlers["webkit--callback-unfocus"].postMessage('');
+    hints = [];
   }
 
   function readKey(event) {
@@ -47,14 +55,8 @@ var __WKViewHints = Object.freeze((function(){
       selected.click();
     }
     else {
-      console.log("this shouldn't happen");
+      cleanup();
     }
-  }
-
-  function cleanup(event) {
-    hints.forEach(hint => hint.remove());
-    document.removeEventListener('keydown', readKey);
-    hints = [];
   }
 
   return function(hintKeys) {

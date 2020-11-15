@@ -18,7 +18,8 @@
   (interactive)
   (webkit--execute-js
    (or webkit-id webkit--id)
-   (format "__WKViewHints('%s');" webkit-ace-chars)))
+   (format "__WKViewHints('%s');" webkit-ace-chars))
+  (webkit--focus (or webkit-id webkit--id)))
 
 (defun webkit-ace-init ()
   ;;(webkit--register-script-message webkit--id "webkit-ace--callback")
@@ -27,3 +28,6 @@
   )
 
 (add-hook 'webkit-new-hook #'webkit-ace-init)
+
+(provide 'webkit-ace)
+;;; webkit-history.el ends here

@@ -3,6 +3,7 @@
 
 (require 'webkit)
 (require 'evil-collection-webkit)
+(require 'webkit-ace)
 
 (evil-collection-xwidget-setup)
 
@@ -49,3 +50,8 @@
 (webkit--show webkit--id)
 
 (webkit--resize webkit--id 50 50 200 400)
+
+(setq test-hist nil)
+(maphash (lambda (k v)
+           (push (cons k v) test-hist))
+             webkit-history-table)

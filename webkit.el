@@ -45,6 +45,7 @@
 (declare-function webkit--search-finish "webkit-module")
 (declare-function webkit--search-next "webkit-module")
 (declare-function webkit--search-previous "webkit-module")
+(declare-function webkit--start-web-inspector "webkit-module")
 (declare-function webkit--execute-js "webkit-module")
 (declare-function webkit--add-user-style "webkit-module")
 (declare-function webkit--remove-all-user-styles "webkit-module")
@@ -83,6 +84,7 @@ webkit-new is run in order for embedding to work."
     (define-key map "i" 'webkit-insert-mode)
     (define-key map "+" 'webkit-zoom-in)
     (define-key map "-" 'webkit-zoom-out)
+    (define-key map (kbd "C-y") 'webkit-copy-selection)
 
     ;;similar to image mode bindings
     (define-key map (kbd "SPC")                 'webkit-scroll-up)
@@ -202,6 +204,24 @@ If N is omitted or nil, scroll backwards by one char."
    (or webkit-id webkit--id)
    "window.scrollTo(pageXOffset, window.document.body.scrollHeight);"))
 
+(defun webkit--copy-selection-callback (selection)
+  (let ((print-escape-newlines t))
+    (kill-new (elt (json-parse-string selection) 0))))
+
+(defun webkit-copy-selection (&optional webkit-id)
+  "Copy the webkit selection to the kill ring."
+  (interactive)
+  (webkit--execute-js
+   (or webkit-id webkit--id)
+   "[window.getSelection().toString()];" "webkit--copy-selection-callback"))
+
+(defun webkit-copy-url (&optional webkit-id)
+  "Copy the webkit url to the kill ring."
+  (interactive)
+  (let ((uri (webkit--get-uri (or webkit-id webkit--id))))
+    (message "Copied %s" uri)
+    (kill-new uri)))
+
 (defun webkit-forward (&optional webkit-id)
   "Go forward in history."
   (interactive)
@@ -236,6 +256,11 @@ If N is omitted or nil, scroll backwards by one char."
   "Go to previous search result in webkit."
   (interactive)
   (webkit--search-previous (or webkit-id webkit--id)))
+
+(defun webkit-start-web-inspector (&optional webkit-id)
+  "Start webkit's webk inspector."
+  (interactive)
+  (webkit--start-web-inspector (or webkit-id webkit--id)))
 
 (defun webkit-insert-mode (&optional webkit-id)
   (interactive)

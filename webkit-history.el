@@ -27,16 +27,15 @@
 
 (defun webkit-history-completing-read (prompt)
   "Prompt for a URI using COMPLETING-READ from webkit history."
-  (let ((completions ()))
+  (let ((completions ())
+        (key-to-count (lambda (k) (webkit-history-item-visit-count
+                                    (gethash (cdr k) webkit-history-table)))))
     (maphash (lambda (k v)
                (push (cons (webkit-history-completion-text v) k) completions))
              webkit-history-table)
-    (sort completions
-          (lambda (k1 k2)
-            (> (webkit-history-item-visit-count
-                (gethash (cdr k1) webkit-history-table))
-               (webkit-history-item-visit-count
-                (gethash (cdr k2) webkit-history-table)))))
+    (setq completions (sort completions (lambda (k1 k2)
+                                          (> (funcall key-to-count k1)
+                                             (funcall key-to-count k2)))))
     (let* ((completion (completing-read prompt completions))
            (uri (cdr (assoc completion completions))))
       (if uri uri completion))))
