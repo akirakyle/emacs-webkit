@@ -1,0 +1,75 @@
+#+TITLE: ~emacs-webkit~
+#+SUBTITLE: A successor to ~xwidget-webkit~
+
+** Warning!
+
+This package is still in the early stages of active development. While I am
+currently using it as a daily-driver, it should be considered as still in an
+alpha stage. This means that the public interface can and likely will change!
+Also, due to the nature of dynamic modules dealing with memory directly, bugs
+can mean segfaults, memory leaks, and ultimately untimely crashes. So beware
+that data loss may result! However, if you do experience crashes, please report
+it!
+
+* Background
+
+I've found that the only two applications I regularly have open are Emacs and a
+browser. Emacs is a joy to use while I feel like I'm constantly fighting my
+browser. I used to be pretty happy with Firefox and vimperator however since
+Project Quantum came to FF 57+, I haven't been satisfied with the extensibility
+or speed of the WebExtension replacements. There are a few keyboard driven,
+extensible browser projects such as qutebrowser, LuaKit, vimb, surf,
+etc.... Unfortunately given the complexity of the "modern" web, they all have to
+be based off of either the Blink (through QtWebEngine) or WebKit (through
+WebKitGTK) browser engines (I really wish Mozilla would put more effort into
+making a clean and maintained API for embedding the latest Gecko with rust
+components). I've shied away from Blink based browsers out of principles of
+wanting to avoid Google and the browser monoculture.
+
+An attempt at adding a webkitgtk widget to Emacs with the experimental
+~xwidgets~ feature was made many years ago and has received pretty minimal
+development over the years. I think it isn't for lack of interest in the
+concept, but rather the difficulty of understanding the complicated dance that
+is Emacs redisplay and how xwidgets hacked themselves into that along with the
+"politics" of having a full featured browser inside Emacs core that could
+potentially execute non-free javascript. I figured that perhaps such a feature
+could be implemented instead as a dynamic module. This has the advantage of a
+clearer separation between Emacs' display handling and webkit's hopefully making
+it easier to workout the inevitable bugs that occur when forcing them to
+coexist. This also allows features and fixes to be developed outside of Emacs
+core with less concern for supporting all the platforms and environments that
+Emacs needs to work with, while also avoiding some of the "political tensions".
+
+- But what about the Emacs Application Framework (EAF)?
+
+While I think its neat what EAF has been able to do, I personally have less of a
+desire to dive into its code due to its reliance on Qt (and hence Blink for its
+browser component) and python, and I suspect this may be a barrier for others as
+well. Furthermore I don't think it has a technical path forward to cleanly
+working on Wayland due to its reliance on the XEmbed protocol. My goal with
+~emacs-webkit~ was to have something that will work with pgtk port of Emacs (in
+fact I primarily developed it on Wayland running pgtk Emacs).
+
+- But what about nyxt?
+
+I think nyxt is certainly a cool project and I wish them the best! However, I
+would say this project is for the Emacs user like me who begrudgingly uses a
+modern web browser but wishes they didn't have to. I wish I could make eww my
+default browser but it just very often doesn't cut it due to the unfortunate
+world of "modern" javascript and "web apps". In contrast, I would say nyxt is
+more for the lisp aficionado who wishes the web ran lisp instead of javascript
+and the Emacs user who wishes Emacs' underlying UI paradigm looked more like the
+web's DOM. I believe the nyxt developers want nyxt to essentially be a common
+lisp emacs. It is a massive undertaking and will take time for them to build an
+ecosystem like the one Emacs has developed over the decades. I thought about
+ways I could make nyxt integrate with Emacs in a way I would be happy with and
+it certainly would be possible to do so given the extensibility of nyxt. However
+I felt there would always be this friction between deciding who's UI to use (do
+I integrate Emacs buffers into nyxt's minibuffer or nyxts buffers into
+Emacs?). Finally I wanted an excuse to dig more into Emacs' C guts and this
+project has given me a lot of chances to do so.
+
+* Installation
+
+
+* Usage
