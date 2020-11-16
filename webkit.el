@@ -29,6 +29,7 @@
 (declare-function webkit--new "webkit-module")
 (declare-function webkit--destroy "webkit-module")
 (declare-function webkit--resize "webkit-module")
+(declare-function webkit--move-to-focused-frame "webkit-module")
 (declare-function webkit--hide "webkit-module")
 (declare-function webkit--show "webkit-module")
 (declare-function webkit--focus "webkit-module")
@@ -46,6 +47,7 @@
 (declare-function webkit--search-next "webkit-module")
 (declare-function webkit--search-previous "webkit-module")
 (declare-function webkit--start-web-inspector "webkit-module")
+(declare-function webkit--enable-javascript "webkit-module")
 (declare-function webkit--execute-js "webkit-module")
 (declare-function webkit--add-user-style "webkit-module")
 (declare-function webkit--remove-all-user-styles "webkit-module")
@@ -54,9 +56,18 @@
 (declare-function webkit--register-script-message "webkit-module")
 (declare-function webkit--unregister-script-message "webkit-module")
 
-(require 'webkit-module)
+(defun webkit--file-to-string (filename)
+  (with-temp-buffer
+    (insert-file-contents filename)
+    (buffer-string)))
 
-(defconst webkit-base (file-name-directory load-file-name))
+(defconst webkit--base (file-name-directory load-file-name))
+
+(require 'webkit-module)
+(require 'webkit-history)
+(require 'webkit-ace)
+(require 'browse-url)
+(require 'eww)
 
 (defgroup webkit nil
   "webkit browser ."
@@ -262,6 +273,12 @@ If N is omitted or nil, scroll backwards by one char."
   (interactive)
   (webkit--start-web-inspector (or webkit-id webkit--id)))
 
+(defun webkit-enable-javascript (&optional enable webkit-id)
+  "Enable external javascript execution if ENABLE is not nil and
+disable it otherwise."
+  (interactive "P")
+  (webkit--enable-javascript (or webkit-id webkit--id) enable))
+
 (defun webkit-insert-mode (&optional webkit-id)
   (interactive)
   (message "Entering webkit insert mode, press C-g to exit")
@@ -314,18 +331,24 @@ If N is omitted or nil, scroll backwards by one char."
   "Adjust webkit size for window in FRAME"
   ;;(message "adjusting size...")
   (dolist (buffer webkit--buffers)
-    (if (buffer-live-p buffer)
-        (with-current-buffer buffer
-          (let* ((windows (get-buffer-window-list (current-buffer) 'nomini frame)))
-            (if (not windows)
-                (webkit--hide webkit--id)
+    (when (buffer-live-p buffer)
+      (with-current-buffer buffer
+        (let* ((windows (get-buffer-window-list buffer 'nomini t)))
+          (if (not windows)
+              (webkit--hide webkit--id)
+            (let* ((show-window (if (memq (selected-window) windows)
+                                    (selected-window)
+                                  (car windows)))
+                   (hide-windows (remq show-window windows)))
+              (when (eq (window-frame show-window) (selected-frame))
+                (webkit--move-to-focused-frame webkit--id))
               (pcase-let ((`(,left ,top ,right ,bottom)
-                           (window-inside-pixel-edges (car windows))))
+                           (window-inside-pixel-edges show-window)))
                 (webkit--show webkit--id)
-                (webkit--resize webkit--id
-                                   left top (- right left) (- bottom top)))
-              (dolist (window (cdr windows))
-                (switch-to-prev-buffer window))))))))
+                (webkit--resize webkit--id left top
+                                (- right left) (- bottom top)))
+              (dolist (window hide-windows)
+                (switch-to-prev-buffer window)))))))))
 
 (defun webkit--close (msg)
   (set-process-query-on-exit-flag (get-buffer-process (current-buffer)) nil)
@@ -337,15 +360,10 @@ If N is omitted or nil, scroll backwards by one char."
     (webkit--destroy webkit--id)
     (setq webkit--buffers (delq (current-buffer) webkit--buffers))))
 
-(defun webkit--file-to-string (filename)
-  (with-temp-buffer
-    (insert-file-contents filename)
-    (buffer-string)))
-
 (setq webkit--script (webkit--file-to-string
-                         (expand-file-name "script.js" webkit-base)))
+                         (expand-file-name "script.js" webkit--base)))
 (setq webkit--style (webkit--file-to-string
-                        (expand-file-name "style.css" webkit-base)))
+                        (expand-file-name "style.css" webkit--base)))
 
 (defun webkit-new (&optional url buffer-name noquery)
   "Create a new webkit with URL
@@ -368,13 +386,13 @@ Returns the newly created webkit buffer"
       (webkit--add-user-script webkit--id webkit--script)
       (webkit--add-user-style webkit--id webkit--style)
       (when url (webkit--load-uri webkit--id url))
-      (when (fboundp 'posframe-delete-all)
-        (posframe-delete-all)) ;; hack necessary to get correct z-ordering
+      ;; hack necessary to get correct z-ordering
+      ;;(when (fboundp 'posframe-delete-all)
+      ;;  (posframe-delete-all))
       (run-hooks 'webkit-new-hook)
       (switch-to-buffer buffer))))
 
-(require 'browse-url)
-
+;;;###autoload
 (defun webkit-browse-url (url &optional new-session)
   "Goto URL with webkit using browse-url.
 
@@ -388,8 +406,7 @@ current session."
                                webkit--id))
                          url)))
 
-(require 'webkit-history)
-
+;;;###autoload
 (defun webkit (url &optional arg)
   "Fetch URL and render the page.
 If the input doesn't look like an URL or a domain name, the
@@ -404,7 +421,7 @@ the default webkit buffer."
   (let ((eww-search-prefix webkit-search-prefix))
     (webkit-browse-url (eww--dwim-expand-url url) (eq arg 4))))
 
-(define-derived-mode webkit-mode special-mode "webkit"
+(define-derived-mode webkit-mode special-mode "WebKit"
   "webkit view mode."
   (setq buffer-read-only nil))
 

@@ -39,6 +39,19 @@
   (interactive)
   (webkit-scroll-by-percent -0.5))
 
+(setq webkit--evil-escape-script "
+function WKViewEvilKeyDown(event) {
+  console.log('WKViewKeyDown: '+event.key);
+  if (event.key == 'Escape') {
+    window.webkit.messageHandlers['webkit--callback-unfocus'].postMessage('');
+  }
+}
+document.addEventListener('keydown', WKViewEvilKeyDown);
+")
+
+(defun evil-collection-webkit-escape ()
+  (webkit--add-user-script webkit--id webkit--evil-escape-script))
+
 (defun evil-collection-webkit-insert-on-insert ()
   (add-hook 'evil-insert-state-entry-hook 'webkit-insert-mode nil t))
 
@@ -84,6 +97,7 @@
       (kbd "C-u") 'webkit-scroll-down-half))
 
   (add-hook 'webkit-mode-hook #'evil-collection-webkit-insert-on-insert)
+  (add-hook 'webkit-new-hook #'evil-collection-webkit-escape)
   (advice-add 'webkit--callback-unfocus
               :after #'evil-collection-webkit-unfocus-to-normal-mode)
   )

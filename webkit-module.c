@@ -9,6 +9,15 @@
 
 #include "emacs-module.h"
 
+#ifdef DEBUG
+#define DEBUG_TEST 1
+#else
+#define DEBUG_TEST 0
+#endif
+
+#define debug_print(fmt, ...)                                           \
+  do { if (DEBUG_TEST) fprintf(stderr, fmt, ##__VA_ARGS__); } while (0)
+
 int plugin_is_GPL_compatible;
 
 /* Frequently-used symbols. */
@@ -261,6 +270,22 @@ webkit_start_web_inspector (emacs_env *env, ptrdiff_t n,
 }
 
 static emacs_value
+webkit_enable_javascript (emacs_env *env, ptrdiff_t n,
+                          emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    {
+      WebKitSettings *settings = webkit_web_view_get_settings (c->view);
+      g_object_set (G_OBJECT(settings), "enable-javascript-markup",
+                    env->is_not_nil (env, args[1]) ? TRUE : FALSE, NULL);
+      debug_print ("set %p enable-javascript-markup to %d\n", c,
+                   env->is_not_nil (env, args[1]) ? TRUE : FALSE);
+    }
+  return Qnil;
+}
+
+static emacs_value
 webkit_resize (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
   Client *c = get_client(env, args[0]);
@@ -269,7 +294,7 @@ webkit_resize (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   int w = env->extract_integer(env, args[3]);
   int h = env->extract_integer(env, args[4]);
 
-  //printf("resize %p to (x:%d y:%d w:%d h:%d)\n", c, x, y, w, h);
+  debug_print ("resize %p to (x:%d y:%d w:%d h:%d)\n", c, x, y, w, h);
   if ((env->non_local_exit_check(env) == emacs_funcall_exit_return)
       && (c != NULL))
     {
@@ -319,7 +344,7 @@ webkit_js_finished (GObject *web_view, GAsyncResult *result, gpointer arg)
   GError *error = NULL;
   Callback *cb = (Callback *) arg;
 
-  printf ("js_finished %p with id: %s\n", cb->c, cb->id);
+  debug_print ("js_finished %p with id: %s\n", cb->c, cb->id);
 
   WebKitJavascriptResult *js_result =
     webkit_web_view_run_javascript_finish (WEBKIT_WEB_VIEW(web_view),
@@ -342,7 +367,7 @@ webkit_js_finished (GObject *web_view, GAsyncResult *result, gpointer arg)
   else
     send_to_lisp (cb->c, cb->id, json == NULL ? "null" : json);
 
-  printf ("Script result: %s\n", json);
+  debug_print ("Script result: %s\n", json);
 
   g_free (json);
   free (cb->id);
@@ -361,7 +386,7 @@ webkit_execute_js (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
     {
       if ((n == 3) && copy_string_contents (env, args[2], &id, &size))
         {
-          printf ("executing %p script: %s id: %s\n", c, script, id);
+          debug_print ("executing %p script: %s id: %s\n", c, script, id);
           Callback *cb = malloc (sizeof (Callback));
           cb->c = c;
           cb->id = id;
@@ -370,11 +395,11 @@ webkit_execute_js (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
         }
       else
         {
-          printf ("executing %p script: %s id: %s\n", c, script, id);
+          debug_print ("executing %p script: %s id: %s\n", c, script, id);
           webkit_web_view_run_javascript (c->view, script, NULL, NULL, NULL);
         }
     }
-  printf ("executing %p script: %s id: %s\n", c, script, id);
+  debug_print ("executing %p script: %s id: %s\n", c, script, id);
   free (script);
   return Qnil;
 }
@@ -401,7 +426,7 @@ webkit_add_user_style (emacs_env *env, ptrdiff_t n,
       webkit_user_content_manager_add_style_sheet (ucm, user_style);
       webkit_user_style_sheet_unref (user_style);
     }
-  printf ("adding %p style: %s\n", c, style);
+  debug_print ("adding %p style: %s\n", c, style);
   free (style);
   return Qnil;
 }
@@ -417,7 +442,7 @@ webkit_remove_all_user_styles (emacs_env *env, ptrdiff_t n,
         webkit_web_view_get_user_content_manager (c->view);
       webkit_user_content_manager_remove_all_style_sheets (ucm);
     }
-  printf("webkit_remove_all_user_styles from %p", c);
+  debug_print ("webkit_remove_all_user_styles from %p", c);
   return Qnil;
 }
 static emacs_value
@@ -443,7 +468,7 @@ webkit_add_user_script (emacs_env *env, ptrdiff_t n,
       webkit_user_content_manager_add_script (ucm, user_script);
       webkit_user_script_unref (user_script);
     }
-  printf ("adding %p script: %s\n", c, script);
+  debug_print ("adding %p script: %s\n", c, script);
   free (script);
   return Qnil;
 }
@@ -459,7 +484,7 @@ webkit_remove_all_user_scripts (emacs_env *env, ptrdiff_t n,
         webkit_web_view_get_user_content_manager (c->view);
       webkit_user_content_manager_remove_all_scripts (ucm);
     }
-  printf("webkit_remove_all_user_scripts from %p", c);
+  debug_print ("webkit_remove_all_user_scripts from %p", c);
   return Qnil;
 }
 
@@ -483,7 +508,7 @@ webkit_script_message_cb (WebKitUserContentManager *scriptor,
   else
     send_to_lisp (c, name, json == NULL ? "null" : json);
 
-  printf ("Script name: %s, result: %s\n", name, json);
+  debug_print ("Script name: %s, result: %s\n", name, json);
 }
 
 static emacs_value
@@ -508,7 +533,7 @@ webkit_register_script_message (emacs_env *env, ptrdiff_t n,
           (ucm, G_SIGNAL_MATCH_FUNC, 0, g_quark_from_string (name), 0,
            G_CALLBACK (webkit_script_message_cb), 0);
     }
-  printf ("adding %p script message: %s\n", c, name);
+  debug_print ("adding %p script message: %s\n", c, name);
   free (name);
   return Qnil;
 }
@@ -530,7 +555,7 @@ webkit_unregister_script_message (emacs_env *env, ptrdiff_t n,
         (ucm, G_SIGNAL_MATCH_FUNC, 0, g_quark_from_string (name), 0,
          G_CALLBACK (webkit_script_message_cb), 0);
     }
-  printf ("removing %p script message: %s\n", c, name);
+  debug_print ("removing %p script message: %s\n", c, name);
   free (name);
   return Qnil;
 }
@@ -539,10 +564,10 @@ webkit_unregister_script_message (emacs_env *env, ptrdiff_t n,
 static gboolean
 webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
 {
-  printf ("key_press_event: %p\n", c);
+  debug_print ("key_press_event: %p\n", c);
   switch (e->type) {
   case GDK_KEY_PRESS:
-    printf("key.keyval = %d\n", e->key.keyval);
+    debug_print ("key.keyval = %d\n", e->key.keyval);
     if (e->key.keyval == GDK_KEY_Escape && e->key.state == 0)
       {
         gtk_widget_grab_focus(GTK_WIDGET(c->container));
@@ -576,7 +601,7 @@ static void
 webview_notify_load_progress (WebKitWebView *webview, GParamSpec *pspec, Client *c)
 {
   gdouble prog = 100.0 * webkit_web_view_get_estimated_load_progress (webview);
-  gchar *buf = g_strdup_printf("%f", prog);
+  gchar *buf = g_strdup_printf ("%f", prog);
   send_to_lisp (c, "webkit--callback-progress", buf);
   g_free (buf);
 }
@@ -602,7 +627,7 @@ static void
 findcontroller_counted_matches(WebKitFindController *finder,
                                guint count, Client *c)
 {
-  gchar *buf = g_strdup_printf("%d", count);
+  gchar *buf = g_strdup_printf ("%d", count);
   send_to_lisp (c, "webkit--counted-matches", buf);
   g_free (buf);
 }
@@ -706,7 +731,7 @@ webview_close (WebKitWebView *webview, Client *c)
 static void
 window_destroy (GtkWidget *window, Client *c)
 {
-  printf("window destroying %p\n", c);
+  debug_print ("window destroying %p\n", c);
   if (c->container != NULL)
     gtk_widget_destroy (c->container);
   c->container = NULL;
@@ -718,54 +743,56 @@ static emacs_value
 webkit_destroy (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
   Client *c = get_client (env, args[0]);
-  printf("destroying %p\n", c);
+  debug_print ("destroying %p\n", c);
   if (c != NULL)
     {
       //gtk_container_remove (GTK_CONTAINER (c->container), GTK_WIDGET (c->view));
       gtk_widget_destroy (GTK_WIDGET (c->view));
-      printf("destroyed c->view\n");
+      debug_print ("destroyed c->view\n");
       if (GTK_IS_WINDOW(c->container))
         gtk_widget_destroy (c->container);
 
       c->container = NULL;
       c->view = NULL;
     }
-  printf("returning...\n");
+  debug_print ("returning...\n");
   return Qnil;
 }
 
 static void
 client_free (void *ptr)
 {
-  printf ("freeing %p\n", ptr);
+  debug_print ("freeing %p\n", ptr);
   Client *c = (Client *)ptr;
   assert (c->container == NULL);
   assert (c->view == NULL);
   free(c);
 }
 
+#ifdef DEBUG
 static void
 print_widget_tree (GList *widgets)
 {
   for (GList *l = widgets; l != NULL; l = l->next)
     {
       char *path = gtk_widget_path_to_string(gtk_widget_get_path(l->data));
-      printf("widget %s\n", path);
+      debug_print ("widget %s\n", path);
       if (GTK_IS_FIXED(l->data))
-        printf("found fixed!\n");
+        debug_print ("found fixed!\n");
       if (GTK_IS_WINDOW(l->data))
         {
-          printf("  window: %s, focus: %d\n", gtk_window_get_title(l->data),
+          debug_print ("  window: %s, focus: %d\n", gtk_window_get_title(l->data),
                  gtk_window_has_toplevel_focus(l->data));
           print_widget_tree(gtk_container_get_children(GTK_CONTAINER(l->data)));
         }
       else if (GTK_IS_CONTAINER(l->data))
         {
-          printf("  container\n");
+          debug_print ("  container\n");
           print_widget_tree(gtk_container_get_children(GTK_CONTAINER(l->data)));
         }
     }
 }
+#endif
 
 static GtkFixed *
 find_fixed_widget (GList *widgets)
@@ -792,6 +819,80 @@ find_focused_fixed_widget ()
   return NULL;
 }
 
+
+static bool
+webkit_move_to_focused_frame_internal (Client *c, emacs_env *env)
+{
+  GtkFixed *fixed = find_focused_fixed_widget ();
+  if (fixed == NULL)
+    {
+      env->non_local_exit_signal
+        (env, env->intern (env, "webkit-module-no-focused-fixed-widget"),
+         env->intern (env, "nil"));
+      return false;
+    }
+  else if (GTK_WIDGET (fixed) != c->container)
+    {
+      debug_print ("moving %p to from %p to %p\n", c, c->container, fixed);
+      g_object_ref (c->view);
+      if (c->container != NULL)
+        gtk_container_remove (GTK_CONTAINER (c->container),
+                              GTK_WIDGET (c->view));
+      c->container = GTK_WIDGET (fixed);
+
+      /* play nice with child frames 
+         (should webkit always go under child frames?) */
+      GList *widgets = gtk_container_get_children (GTK_CONTAINER
+                                                   (c->container));
+
+      //gtk_fixed_put (GTK_FIXED (c->container), GTK_WIDGET (c->view), 0, 0);
+      gtk_container_add (GTK_CONTAINER (c->container),
+                         GTK_WIDGET (c->view));
+      g_object_unref (c->view);
+
+      for (GList *l = widgets; l != NULL; l = l->next)
+        {
+          //g_object_get (G_OBJECT (l->data), "x", &x, "y", &y, NULL);
+          GValue xv = G_VALUE_INIT;
+          GValue yv = G_VALUE_INIT;
+          g_value_init (&xv, G_TYPE_INT);
+          g_value_init (&yv, G_TYPE_INT);
+          gtk_container_child_get_property (GTK_CONTAINER (c->container),
+                                            GTK_WIDGET (l->data), "x", &xv);
+          gtk_container_child_get_property (GTK_CONTAINER (c->container),
+                                            GTK_WIDGET (l->data), "y", &yv);
+          int x = g_value_get_int (&xv);
+          int y = g_value_get_int (&yv);
+          g_object_ref (l->data);
+          debug_print ("removing child from %p with x: %d, y: %d\n", c, x, y);
+          gtk_container_remove (GTK_CONTAINER (c->container),
+                                GTK_WIDGET (l->data));
+          gtk_fixed_put (GTK_FIXED (c->container), 
+                         GTK_WIDGET (l->data), x, y);
+          g_object_unref (l->data);
+        }
+
+      /*
+      for (GList *l = widgets; l != NULL; l = l->next)
+        {
+          gtk_container_add (GTK_CONTAINER (c->container),
+                             GTK_WIDGET (l->data));
+        }
+      */
+    }
+  return true;
+}
+
+static emacs_value
+webkit_move_to_focused_frame (emacs_env *env, ptrdiff_t n,
+                              emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  if (c != NULL)
+    webkit_move_to_focused_frame_internal (c, env);
+  return Qnil;
+}
+
 static emacs_value
 webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
@@ -811,7 +912,9 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
   //gtk_widget_set_focus_on_click (GTK_WIDGET (c->view), FALSE);
 
-  print_widget_tree(gtk_window_list_toplevels());
+#ifdef DEBUG
+  print_widget_tree (gtk_window_list_toplevels());
+#endif
   if (env->is_not_nil (env, args[1]))
     {
       c->container = gtk_window_new (GTK_WINDOW_TOPLEVEL);
@@ -828,16 +931,9 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
     }
   else
     {
-      GtkFixed *fixed = find_focused_fixed_widget ();
-      if (fixed == NULL)
-        {
-          env->non_local_exit_signal
-            (env, env->intern (env, "webkit-module-no-focused-fixed-widget"),
-             env->intern (env, "nil"));
-          return Qnil;
-        }
-      c->container = GTK_WIDGET (fixed);
-      gtk_fixed_put (GTK_FIXED (c->container), GTK_WIDGET (c->view), 0, 0);
+      if (!webkit_move_to_focused_frame_internal (c, env))
+        return Qnil;
+
       gtk_widget_show_all (GTK_WIDGET (c->view));
     }
 
@@ -861,8 +957,10 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
                    "counted-matches",
                    G_CALLBACK(findcontroller_counted_matches), c);
 
+#ifdef DEBUG
   webkit_settings_set_enable_write_console_messages_to_stdout
     (webkit_web_view_get_settings (c->view), true);
+#endif
   // https://bugs.webkit.org/show_bug.cgi?id=200856
   webkit_settings_set_hardware_acceleration_policy
     (webkit_web_view_get_settings (c->view), WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
@@ -878,18 +976,18 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 }
 
 static void
-bind_function(emacs_env *env, const char *name, emacs_value Sfun)
+bind_function (emacs_env *env, const char *name, emacs_value Sfun)
 {
-  emacs_value Qfset = env->intern(env, "fset");
-  emacs_value Qsym = env->intern(env, name);
+  emacs_value Qfset = env->intern (env, "fset");
+  emacs_value Qsym = env->intern (env, name);
 
-  env->funcall(env, Qfset, 2, (emacs_value[]){Qsym, Sfun});
+  env->funcall (env, Qfset, 2, (emacs_value[]){Qsym, Sfun});
 }
 
 int
-emacs_module_init(struct emacs_runtime *ert)
+emacs_module_init (struct emacs_runtime *ert)
 {
-  emacs_env *env = ert->get_environment(ert);
+  emacs_env *env = ert->get_environment (ert);
   int argc = 0;
   char **argv = NULL;
   if (!gtk_init_check (&argc, &argv))
@@ -901,96 +999,102 @@ emacs_module_init(struct emacs_runtime *ert)
     }
 
   // Symbols
-  Qt = env->make_global_ref(env, env->intern(env, "t"));
-  Qnil = env->make_global_ref(env, env->intern(env, "nil"));
+  Qt = env->make_global_ref (env, env->intern(env, "t"));
+  Qnil = env->make_global_ref (env, env->intern(env, "nil"));
 
   // Functions
   emacs_value fun;
-  fun = env->make_function(env, 2, 2, webkit_new, "", NULL);
-  bind_function(env, "webkit--new", fun);
+  fun = env->make_function (env, 2, 2, webkit_new, "", NULL);
+  bind_function (env, "webkit--new", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_destroy, "", NULL);
-  bind_function(env, "webkit--destroy", fun);
+  fun = env->make_function (env, 1, 1, webkit_destroy, "", NULL);
+  bind_function (env, "webkit--destroy", fun);
 
-  fun = env->make_function(env, 5, 5, webkit_resize, "", NULL);
-  bind_function(env, "webkit--resize", fun);
+  fun = env->make_function (env, 5, 5, webkit_resize, "", NULL);
+  bind_function (env, "webkit--resize", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_hide, "", NULL);
-  bind_function(env, "webkit--hide", fun);
+  fun = env->make_function (env, 1, 1, webkit_move_to_focused_frame, "", NULL);
+  bind_function (env, "webkit--move-to-focused-frame", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_show, "", NULL);
-  bind_function(env, "webkit--show", fun);
+  fun = env->make_function (env, 1, 1, webkit_hide, "", NULL);
+  bind_function (env, "webkit--hide", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_focus, "", NULL);
-  bind_function(env, "webkit--focus", fun);
+  fun = env->make_function (env, 1, 1, webkit_show, "", NULL);
+  bind_function (env, "webkit--show", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_unfocus, "", NULL);
-  bind_function(env, "webkit--unfocus", fun);
+  fun = env->make_function (env, 1, 1, webkit_focus, "", NULL);
+  bind_function (env, "webkit--focus", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_forward, "", NULL);
-  bind_function(env, "webkit--forward", fun);
+  fun = env->make_function (env, 1, 1, webkit_unfocus, "", NULL);
+  bind_function (env, "webkit--unfocus", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_back, "", NULL);
-  bind_function(env, "webkit--back", fun);
+  fun = env->make_function (env, 1, 1, webkit_forward, "", NULL);
+  bind_function (env, "webkit--forward", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_reload, "", NULL);
-  bind_function(env, "webkit--reload", fun);
+  fun = env->make_function (env, 1, 1, webkit_back, "", NULL);
+  bind_function (env, "webkit--back", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_get_zoom, "", NULL);
-  bind_function(env, "webkit--get-zoom", fun);
+  fun = env->make_function (env, 1, 1, webkit_reload, "", NULL);
+  bind_function (env, "webkit--reload", fun);
 
-  fun = env->make_function(env, 2, 2, webkit_set_zoom, "", NULL);
-  bind_function(env, "webkit--set-zoom", fun);
+  fun = env->make_function (env, 1, 1, webkit_get_zoom, "", NULL);
+  bind_function (env, "webkit--get-zoom", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_get_title, "", NULL);
-  bind_function(env, "webkit--get-title", fun);
+  fun = env->make_function (env, 2, 2, webkit_set_zoom, "", NULL);
+  bind_function (env, "webkit--set-zoom", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_get_uri, "", NULL);
-  bind_function(env, "webkit--get-uri", fun);
+  fun = env->make_function (env, 1, 1, webkit_get_title, "", NULL);
+  bind_function (env, "webkit--get-title", fun);
 
-  fun = env->make_function(env, 2, 2, webkit_load_uri, "", NULL);
-  bind_function(env, "webkit--load-uri", fun);
+  fun = env->make_function (env, 1, 1, webkit_get_uri, "", NULL);
+  bind_function (env, "webkit--get-uri", fun);
 
-  fun = env->make_function(env, 2, 2, webkit_search, "", NULL);
-  bind_function(env, "webkit--search", fun);
+  fun = env->make_function (env, 2, 2, webkit_load_uri, "", NULL);
+  bind_function (env, "webkit--load-uri", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_search_finish, "", NULL);
-  bind_function(env, "webkit--search-finish", fun);
+  fun = env->make_function (env, 2, 2, webkit_search, "", NULL);
+  bind_function (env, "webkit--search", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_search_next, "", NULL);
-  bind_function(env, "webkit--search-next", fun);
+  fun = env->make_function (env, 1, 1, webkit_search_finish, "", NULL);
+  bind_function (env, "webkit--search-finish", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_search_previous, "", NULL);
-  bind_function(env, "webkit--search-previous", fun);
+  fun = env->make_function (env, 1, 1, webkit_search_next, "", NULL);
+  bind_function (env, "webkit--search-next", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_start_web_inspector, "", NULL);
-  bind_function(env, "webkit--start-web-inspector", fun);
+  fun = env->make_function (env, 1, 1, webkit_search_previous, "", NULL);
+  bind_function (env, "webkit--search-previous", fun);
 
-  fun = env->make_function(env, 2, 3, webkit_execute_js, "", NULL);
-  bind_function(env, "webkit--execute-js", fun);
+  fun = env->make_function (env, 1, 1, webkit_start_web_inspector, "", NULL);
+  bind_function (env, "webkit--start-web-inspector", fun);
 
-  fun = env->make_function(env, 2, 4, webkit_add_user_style, "", NULL);
-  bind_function(env, "webkit--add-user-style", fun);
+  fun = env->make_function (env, 2, 2, webkit_enable_javascript, "", NULL);
+  bind_function (env, "webkit--enable-javascript", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_remove_all_user_styles, "", NULL);
-  bind_function(env, "webkit--remove-all-user-styles", fun);
+  fun = env->make_function (env, 2, 3, webkit_execute_js, "", NULL);
+  bind_function (env, "webkit--execute-js", fun);
 
-  fun = env->make_function(env, 2, 4, webkit_add_user_script, "", NULL);
-  bind_function(env, "webkit--add-user-script", fun);
+  fun = env->make_function (env, 2, 4, webkit_add_user_style, "", NULL);
+  bind_function (env, "webkit--add-user-style", fun);
 
-  fun = env->make_function(env, 1, 1, webkit_remove_all_user_scripts, "", NULL);
-  bind_function(env, "webkit--remove-all-user-scripts", fun);
+  fun = env->make_function (env, 1, 1, webkit_remove_all_user_styles, "", NULL);
+  bind_function (env, "webkit--remove-all-user-styles", fun);
 
-  fun = env->make_function(env, 2, 2, webkit_register_script_message, "", NULL);
-  bind_function(env, "webkit--register-script-message", fun);
+  fun = env->make_function (env, 2, 4, webkit_add_user_script, "", NULL);
+  bind_function (env, "webkit--add-user-script", fun);
 
-  fun = env->make_function(env, 2, 2, webkit_unregister_script_message, "", NULL);
-  bind_function(env, "webkit--unregister-script-message", fun);
+  fun = env->make_function (env, 1, 1, webkit_remove_all_user_scripts, "", NULL);
+  bind_function (env, "webkit--remove-all-user-scripts", fun);
 
-  emacs_value Qfeat = env->intern(env, "webkit-module");
-  emacs_value Qprovide = env->intern(env, "provide");
-  env->funcall(env, Qprovide, 1, (emacs_value[]){Qfeat});
-  printf("init webkit-module\n");
+  fun = env->make_function (env, 2, 2, webkit_register_script_message, "", NULL);
+  bind_function (env, "webkit--register-script-message", fun);
+
+  fun = env->make_function (env, 2, 2, webkit_unregister_script_message, "", NULL);
+  bind_function (env, "webkit--unregister-script-message", fun);
+
+  emacs_value Qfeat = env->intern (env, "webkit-module");
+  emacs_value Qprovide = env->intern (env, "provide");
+  env->funcall (env, Qprovide, 1, (emacs_value[]){Qfeat});
+  debug_print ("init webkit-module\n");
   return 0;
 }
 

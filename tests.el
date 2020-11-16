@@ -1,5 +1,12 @@
+(defun fake-module-reload (module)
+  (interactive "Reload Module file: ")
+  (let ((tmpfile (make-temp-file
+                  (file-name-nondirectory module) nil module-file-suffix)))
+    (copy-file module tmpfile t)
+    (module-load tmpfile)))
+
+(fake-module-reload (expand-file-name "~/git/emacs-webkit/webkit-module.so"))
 ;;(setq debug-on-error t)
-(add-to-list 'load-path (expand-file-name "~/git/emacs-webkit"))
 
 (require 'webkit)
 (require 'evil-collection-webkit)
@@ -8,7 +15,6 @@
 (evil-collection-xwidget-setup)
 
 (webkit-browse-url "http://xkcd.com" t)
-(setq webkit-search-prefix "https://google.com/search?q=")
 (setq webkit-own-window t)
 (garbage-collect)
 

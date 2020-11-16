@@ -40,7 +40,7 @@ coexist. This also allows features and fixes to be developed outside of Emacs
 core with less concern for supporting all the platforms and environments that
 Emacs needs to work with, while also avoiding some of the "political tensions".
 
-- But what about the Emacs Application Framework (EAF)?
+** But what about the Emacs Application Framework (EAF)?
 
 While I think its neat what EAF has been able to do, I personally have less of a
 desire to dive into its code due to its reliance on Qt (and hence Blink for its
@@ -50,7 +50,7 @@ working on Wayland due to its reliance on the XEmbed protocol. My goal with
 ~emacs-webkit~ was to have something that will work with pgtk port of Emacs (in
 fact I primarily developed it on Wayland running pgtk Emacs).
 
-- But what about nyxt?
+** But what about nyxt?
 
 I think nyxt is certainly a cool project and I wish them the best! However, I
 would say this project is for the Emacs user like me who begrudgingly uses a
@@ -71,5 +71,10 @@ project has given me a lot of chances to do so.
 
 * Installation
 
-
 * Usage
+
+* TODO
+- Handle multiple frames
+  - fix deleting a frame showing a webkit buffer
+- completing-read link completion/heading jumping
+- history table mode

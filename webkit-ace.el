@@ -5,10 +5,10 @@
 
 (setq webkit--hints-script
       (webkit--file-to-string
-       (expand-file-name "hints.js" webkit-base)))
+       (expand-file-name "hints.js" webkit--base)))
 (setq webkit--hints-style
       (webkit--file-to-string
-       (expand-file-name "hints.css" webkit-base)))
+       (expand-file-name "hints.css" webkit--base)))
 
 (defun webkit-ace--callback (msg)
   (message msg))
