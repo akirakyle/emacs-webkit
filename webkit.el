@@ -29,7 +29,7 @@
 (declare-function webkit--new "webkit-module")
 (declare-function webkit--destroy "webkit-module")
 (declare-function webkit--resize "webkit-module")
-(declare-function webkit--move-to-focused-frame "webkit-module")
+(declare-function webkit--move-to-frame "webkit-module")
 (declare-function webkit--hide "webkit-module")
 (declare-function webkit--show "webkit-module")
 (declare-function webkit--focus "webkit-module")
@@ -346,9 +346,13 @@ disable it otherwise."
             (let* ((show-window (if (memq (selected-window) windows)
                                     (selected-window)
                                   (car windows)))
-                   (hide-windows (remq show-window windows)))
-              (when (eq (window-frame show-window) (selected-frame))
-                (webkit--move-to-focused-frame webkit--id))
+                   (hide-windows (remq show-window windows))
+                   (show-frame (window-frame show-window))
+                   (win-id (frame-parameter show-frame 'window-id))
+                   (win-id (string-to-number win-id)))
+              ;;(when (eq (window-frame show-window) (selected-frame))
+              ;;  (webkit--move-to-focused-frame webkit--id))
+              (webkit--move-to-frame webkit--id win-id)
               (pcase-let ((`(,left ,top ,right ,bottom)
                            (window-inside-pixel-edges show-window)))
                 (webkit--show webkit--id)
@@ -366,6 +370,19 @@ disable it otherwise."
     ;;(webkit--hide webkit--id)
     (webkit--destroy webkit--id)
     (setq webkit--buffers (delq (current-buffer) webkit--buffers))))
+
+(defun webkit--delete-frame (frame)
+  (let* ((new-frame (car (seq-filter
+                          (lambda (elt)
+                            (not (or (eq elt frame)
+                                     (frame-parameter elt 'parent-frame)
+                                     (not (display-graphic-p elt)))))
+                          (frame-list))))
+         (win-id (string-to-number (frame-parameter new-frame 'window-id))))
+    (message "moving to %d %S" win-id new-frame)
+    (seq-map (lambda (buffer) (with-current-buffer buffer
+                                (webkit--move-to-frame webkit--id win-id)))
+             webkit--buffers)))
 
 (setq webkit--script (webkit--file-to-string
                          (expand-file-name "script.js" webkit--base)))
@@ -446,6 +463,7 @@ the default webkit buffer."
 (add-hook 'webkit-title-changed-functions 'webkit-rename-buffer)
 (add-hook 'webkit-progress-changed-functions 'webkit--echo-progress)
 (add-hook 'kill-buffer-hook #'webkit--kill-buffer)
+(add-hook 'delete-frame-functions #'webkit--delete-frame)
 
 (provide 'webkit)
 ;;; webkit.el ends here

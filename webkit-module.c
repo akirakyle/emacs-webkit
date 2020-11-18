@@ -158,7 +158,6 @@ webkit_load_uri (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   if ((c != NULL) && copy_string_contents (env, args[1], &uri, &size))
     webkit_web_view_load_uri (c->view, uri);
 
-  debug_print("%p uri: %s", c, uri);
   free (uri);
   return Qnil;
 }
@@ -427,7 +426,7 @@ webkit_add_user_style (emacs_env *env, ptrdiff_t n,
       webkit_user_content_manager_add_style_sheet (ucm, user_style);
       webkit_user_style_sheet_unref (user_style);
     }
-  debug_print ("adding %p style: %s\n", c, style);
+  //debug_print ("adding %p style: %s\n", c, style);
   free (style);
   return Qnil;
 }
@@ -469,7 +468,7 @@ webkit_add_user_script (emacs_env *env, ptrdiff_t n,
       webkit_user_content_manager_add_script (ucm, user_script);
       webkit_user_script_unref (user_script);
     }
-  debug_print ("adding %p script: %s\n", c, script);
+  //debug_print ("adding %p script: %s\n", c, script);
   free (script);
   return Qnil;
 }
@@ -534,7 +533,7 @@ webkit_register_script_message (emacs_env *env, ptrdiff_t n,
           (ucm, G_SIGNAL_MATCH_FUNC, 0, g_quark_from_string (name), 0,
            G_CALLBACK (webkit_script_message_cb), 0);
     }
-  debug_print ("adding %p script message: %s\n", c, name);
+  //debug_print ("adding %p script message: %s\n", c, name);
   free (name);
   return Qnil;
 }
@@ -721,28 +720,30 @@ webcontext_download_started (WebKitWebContext *webctx, WebKitDownload *download,
     send_to_lisp (c, "webkit--callback-download-request", uri);
 } 
 
-/*
 #ifdef DEBUG
 static void
 print_widget_tree (GList *widgets)
 {
+  for (GList *l = widgets; l != NULL; l = l->next)
     {
+      char *path = gtk_widget_path_to_string (gtk_widget_get_path (l->data));
+      debug_print ("widget %p; fixed %d; path %s\n", l->data,
+                   GTK_IS_FIXED (l->data), path);
+      if (GTK_IS_WINDOW (l->data))
+        debug_print ("  ->window; focused %d; title %s\n",
+                     gtk_window_has_toplevel_focus (l->data),
+                     gtk_window_get_title (l->data));
       if (GTK_IS_CONTAINER(l->data))
         print_widget_tree (gtk_container_get_children (GTK_CONTAINER (l->data)));
     }
 }
 #endif
-*/
 
 static GtkFixed *
 find_fixed_widget (GList *widgets)
 {
   for (GList *l = widgets; l != NULL; l = l->next)
     {
-      debug_print ("widget %p; fixed %d; window %d; focused %d; title %s; path %s\n",
-                   l->data, GTK_IS_FIXED (l->data), GTK_IS_WINDOW (l->data),
-                   gtk_window_has_toplevel_focus (l->data), gtk_window_get_title (l->data),
-                   gtk_widget_path_to_string (gtk_widget_get_path (l->data)));
       if (GTK_IS_FIXED (l->data))
         return l->data;
       if (GTK_IS_CONTAINER (l->data))
@@ -774,7 +775,7 @@ int container_child_prop_helper (GtkWidget *container, gpointer child,
 }
 
 static void
-webkit_move_to_frame (Client *c, GtkFixed *fixed)
+webview_change_container (Client *c, GtkFixed *fixed)
 {
   debug_print ("moving %p to from %p to %p\n", c, c->container, fixed);
   if (c->container != NULL)
@@ -800,29 +801,37 @@ webkit_move_to_frame (Client *c, GtkFixed *fixed)
     }
 }
 
-static bool
-webkit_move_to_focused_frame_internal (Client *c, emacs_env *env)
-{
-  GtkFixed *fixed = find_focused_fixed_widget ();
-  if (fixed == NULL)
-    {
-      env->non_local_exit_signal
-        (env, env->intern (env, "webkit-module-no-focused-fixed-widget"),
-         env->intern (env, "nil"));
-      return false;
-    }
-  else if (GTK_WIDGET (fixed) != c->container)
-      webkit_move_to_frame (c, fixed);
-  return true;
-}
-
 static emacs_value
-webkit_move_to_focused_frame (emacs_env *env, ptrdiff_t n,
-                              emacs_value *args, void *ptr)
+webkit_move_to_frame (emacs_env *env, ptrdiff_t n,
+                      emacs_value *args, void *ptr)
 {
+  intmax_t window_id = env->extract_integer(env, args[1]);
   Client *c = get_client (env, args[0]);
+#ifdef DEBUG
+  print_widget_tree (gtk_window_list_toplevels());
+#endif
+  debug_print ("moving %p to window_id %p\n", c, (void *)window_id);
   if (c != NULL)
-    webkit_move_to_focused_frame_internal (c, env);
+    {
+      //webkit_move_to_focused_frame_internal (c, env);
+      GList *widgets = gtk_window_list_toplevels ();
+      for (GList *l = widgets; l != NULL; l = l->next)
+        {
+          if (l->data == (void *)window_id)
+            {
+              GtkFixed *fixed = find_fixed_widget (gtk_container_get_children
+                                                   (GTK_CONTAINER (l->data)));
+              if (fixed != NULL)
+                {
+                  webview_change_container (c, fixed);
+                  return Qnil;
+                }
+            }
+        }
+    }
+  env->non_local_exit_signal
+    (env, env->intern (env, "webkit-module-no-fixed-widget"),
+     env->intern (env, "nil"));
   return Qnil;
 }
 
@@ -845,14 +854,15 @@ window_destroy (GtkWidget *window, Client *c)
   send_to_lisp (c, "webkit--close", "");
 }
 
+/*
 static void
 webview_destroy (WebKitWebView *webview, Client *c)
 {
   debug_print ("webview_destroy %p\n", c);
   //c->container = NULL;
-  //#ifdef DEBUG
-  //  print_widget_tree (gtk_window_list_toplevels());
-  //#endif
+#ifdef DEBUG
+  print_widget_tree (gtk_window_list_toplevels());
+#endif
   GtkFixed *fixed = find_fixed_widget (gtk_window_list_toplevels ());
   if (fixed == NULL)
     {
@@ -864,6 +874,7 @@ webview_destroy (WebKitWebView *webview, Client *c)
       webkit_move_to_frame (c, fixed);
     }
 }
+*/
 
 static emacs_value
 webkit_destroy (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
@@ -913,9 +924,9 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   gtk_widget_set_can_focus(GTK_WIDGET(c->view), FALSE);
   //gtk_widget_set_focus_on_click (GTK_WIDGET (c->view), FALSE);
 
-  //#ifdef DEBUG
-  //  print_widget_tree (gtk_window_list_toplevels());
-  //#endif
+#ifdef DEBUG
+  print_widget_tree (gtk_window_list_toplevels());
+#endif
   if (env->is_not_nil (env, args[1]))
     {
       c->container = gtk_window_new (GTK_WINDOW_TOPLEVEL);
@@ -932,14 +943,20 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
     }
   else
     {
-      if (!webkit_move_to_focused_frame_internal (c, env))
-        return Qnil;
-
+      GtkFixed *fixed = find_focused_fixed_widget ();
+      if (fixed == NULL)
+        {
+          env->non_local_exit_signal
+            (env, env->intern (env, "webkit-module-no-focused-fixed-widget"),
+             env->intern (env, "nil"));
+          return Qnil;
+        }
+      webview_change_container (c, fixed);
       gtk_widget_show_all (GTK_WIDGET (c->view));
     }
 
-  g_signal_connect (G_OBJECT (c->view), "destroy",
-                    G_CALLBACK(webview_destroy), c);
+  //g_signal_connect (G_OBJECT (c->view), "destroy",
+  //                  G_CALLBACK(webview_destroy), c);
   g_signal_connect (G_OBJECT (c->view), "close",
                     G_CALLBACK(webview_close), c);
   //g_signal_connect (G_OBJECT (c->view), "key-press-event",
@@ -1016,8 +1033,8 @@ emacs_module_init (struct emacs_runtime *ert)
   fun = env->make_function (env, 5, 5, webkit_resize, "", NULL);
   bind_function (env, "webkit--resize", fun);
 
-  fun = env->make_function (env, 1, 1, webkit_move_to_focused_frame, "", NULL);
-  bind_function (env, "webkit--move-to-focused-frame", fun);
+  fun = env->make_function (env, 2, 2, webkit_move_to_frame, "", NULL);
+  bind_function (env, "webkit--move-to-frame", fun);
 
   fun = env->make_function (env, 1, 1, webkit_hide, "", NULL);
   bind_function (env, "webkit--hide", fun);
