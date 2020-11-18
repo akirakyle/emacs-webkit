@@ -216,8 +216,10 @@ If N is omitted or nil, scroll backwards by one char."
    "window.scrollTo(pageXOffset, window.document.body.scrollHeight);"))
 
 (defun webkit--copy-selection-callback (selection)
-  (let ((print-escape-newlines t))
-    (kill-new (elt (json-parse-string selection) 0))))
+  (let ((print-escape-newlines t)
+        (text (elt (json-parse-string selection) 0)))
+    (kill-new text)
+    (message "copied \"%s\"" text)))
 
 (defun webkit-copy-selection (&optional webkit-id)
   "Copy the webkit selection to the kill ring."
@@ -248,10 +250,11 @@ If N is omitted or nil, scroll backwards by one char."
   (interactive)
   (webkit--reload (or webkit-id webkit--id)))
 
-(defun webkit-search (query &optional webkit-id)
-  "Search in webkit for QUERY."
+(defun webkit-search (query &optional case webkit-id)
+  "Search in webkit for QUERY.
+Seach is case sensitive if CASE is not nil."
   (interactive (list (read-string "Query: ") nil))
-  (webkit--search (or webkit-id webkit--id) query))
+  (webkit--search (or webkit-id webkit--id) query case))
 
 (defun webkit-search-finish (&optional webkit-id)
   "Stop highlighting search results in webkit."
@@ -298,7 +301,11 @@ disable it otherwise."
   (run-hook-with-args 'webkit-uri-changed-functions uri))
 
 (defun webkit--callback-progress (progress)
-  (run-hook-with-args 'webkit-progress-changed-functions progress))
+  (run-hook-with-args 'webkit-progress-changed-functions
+                      (string-to-number progress)))
+
+(defun webkit--echo-progress (progress)
+  (message "%.0f%%" progress))
 
 (defun webkit--callback-new-view (uri)
   (webkit-new uri))
@@ -324,7 +331,7 @@ disable it otherwise."
         (let ((id (match-string 1))
               (msg (match-string 2)))
           (delete-region 1 (match-end 0))
-          (message "id: %s; message: %s" id msg)
+          ;;(message "id: %s; message: %s" id msg)
           (funcall (intern id) msg))))))
 
 (defun webkit--adjust-size (frame)
@@ -401,10 +408,14 @@ current session."
   (interactive (progn (browse-url-interactive-arg "URL: ")))
   (if (or new-session (not webkit--buffers))
       (webkit-new url)
-    (webkit--load-uri (or webkit--id
-                             (with-current-buffer (car webkit--buffers)
-                               webkit--id))
-                         url)))
+    (let* ((id (or webkit--id (with-current-buffer (car webkit--buffers)
+                               webkit--id)))
+          (buffer (seq-find  (lambda (buffer)
+                               (with-current-buffer buffer 
+                                 (when (eq id webkit--id) buffer)))
+                             webkit--buffers)))
+      (webkit--load-uri id url)
+      (switch-to-buffer buffer))))
 
 ;;;###autoload
 (defun webkit (url &optional arg)
@@ -433,6 +444,7 @@ the default webkit buffer."
 ;;(remove-hook 'window-size-change-functions #'webkit--adjust-size)
 
 (add-hook 'webkit-title-changed-functions 'webkit-rename-buffer)
+(add-hook 'webkit-progress-changed-functions 'webkit--echo-progress)
 (add-hook 'kill-buffer-hook #'webkit--kill-buffer)
 
 (provide 'webkit)

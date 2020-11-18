@@ -214,8 +214,8 @@ webkit_search (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
     webkit_find_controller_search (webkit_web_view_get_find_controller(c->view),
                                    text,
                                    ((n > 2) && env->is_not_nil (env, args[2])) ?
-                                   WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE :
-                                   WEBKIT_FIND_OPTIONS_NONE,
+                                   WEBKIT_FIND_OPTIONS_NONE :
+                                   WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE,
                                    G_MAXUINT);
 
   free (text);
@@ -720,55 +720,6 @@ webcontext_download_started (WebKitWebContext *webctx, WebKitDownload *download,
     send_to_lisp (c, "webkit--callback-download-request", uri);
 } 
 
-static gboolean
-webview_close (WebKitWebView *webview, Client *c)
-{
-  assert (webview == c->view);
-  send_to_lisp (c, "webkit--close", "");
-  return TRUE;
-}
-
-static void
-window_destroy (GtkWidget *window, Client *c)
-{
-  debug_print ("window destroying %p\n", c);
-  if (c->container != NULL)
-    gtk_widget_destroy (c->container);
-  c->container = NULL;
-  c->view = NULL;
-  send_to_lisp (c, "webkit--close", "");
-}
-
-static emacs_value
-webkit_destroy (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
-{
-  Client *c = get_client (env, args[0]);
-  debug_print ("destroying %p\n", c);
-  if (c != NULL)
-    {
-      //gtk_container_remove (GTK_CONTAINER (c->container), GTK_WIDGET (c->view));
-      gtk_widget_destroy (GTK_WIDGET (c->view));
-      debug_print ("destroyed c->view\n");
-      if (GTK_IS_WINDOW(c->container))
-        gtk_widget_destroy (c->container);
-
-      c->container = NULL;
-      c->view = NULL;
-    }
-  debug_print ("returning...\n");
-  return Qnil;
-}
-
-static void
-client_free (void *ptr)
-{
-  debug_print ("freeing %p\n", ptr);
-  Client *c = (Client *)ptr;
-  assert (c->container == NULL);
-  assert (c->view == NULL);
-  free(c);
-}
-
 #ifdef DEBUG
 static void
 print_widget_tree (GList *widgets)
@@ -819,6 +770,48 @@ find_focused_fixed_widget ()
   return NULL;
 }
 
+static void
+webkit_move_to_frame (Client *c, GtkFixed *fixed)
+{
+  debug_print ("moving %p to from %p to %p\n", c, c->container, fixed);
+  g_object_ref (c->view);
+  if (c->container != NULL)
+    gtk_container_remove (GTK_CONTAINER (c->container),
+                          GTK_WIDGET (c->view));
+  c->container = GTK_WIDGET (fixed);
+
+  /* play nice with child frames (should webkit always go under child frames?) */
+  GList *widgets = gtk_container_get_children (GTK_CONTAINER (c->container));
+
+  //gtk_fixed_put (GTK_FIXED (c->container), GTK_WIDGET (c->view), 0, 0);
+  gtk_container_add (GTK_CONTAINER (c->container), GTK_WIDGET (c->view));
+  g_object_unref (c->view);
+
+  for (GList *l = widgets; l != NULL; l = l->next)
+    {
+      //g_object_get (G_OBJECT (l->data), "x", &x, "y", &y, NULL);
+      GValue xv = G_VALUE_INIT;
+      GValue yv = G_VALUE_INIT;
+      g_value_init (&xv, G_TYPE_INT);
+      g_value_init (&yv, G_TYPE_INT);
+      gtk_container_child_get_property (GTK_CONTAINER (c->container),
+                                        GTK_WIDGET (l->data), "x", &xv);
+      gtk_container_child_get_property (GTK_CONTAINER (c->container),
+                                        GTK_WIDGET (l->data), "y", &yv);
+      int x = g_value_get_int (&xv);
+      int y = g_value_get_int (&yv);
+      g_object_ref (l->data);
+      debug_print ("removing child from %p with x: %d, y: %d\n", c, x, y);
+      gtk_container_remove (GTK_CONTAINER (c->container), GTK_WIDGET (l->data));
+      gtk_fixed_put (GTK_FIXED (c->container), GTK_WIDGET (l->data), x, y);
+      g_object_unref (l->data);
+    }
+  /*
+    for (GList *l = widgets; l != NULL; l = l->next)
+    gtk_container_add (GTK_CONTAINER (c->container), GTK_WIDGET (l->data));
+  */
+
+}
 
 static bool
 webkit_move_to_focused_frame_internal (Client *c, emacs_env *env)
@@ -832,54 +825,7 @@ webkit_move_to_focused_frame_internal (Client *c, emacs_env *env)
       return false;
     }
   else if (GTK_WIDGET (fixed) != c->container)
-    {
-      debug_print ("moving %p to from %p to %p\n", c, c->container, fixed);
-      g_object_ref (c->view);
-      if (c->container != NULL)
-        gtk_container_remove (GTK_CONTAINER (c->container),
-                              GTK_WIDGET (c->view));
-      c->container = GTK_WIDGET (fixed);
-
-      /* play nice with child frames 
-         (should webkit always go under child frames?) */
-      GList *widgets = gtk_container_get_children (GTK_CONTAINER
-                                                   (c->container));
-
-      //gtk_fixed_put (GTK_FIXED (c->container), GTK_WIDGET (c->view), 0, 0);
-      gtk_container_add (GTK_CONTAINER (c->container),
-                         GTK_WIDGET (c->view));
-      g_object_unref (c->view);
-
-      for (GList *l = widgets; l != NULL; l = l->next)
-        {
-          //g_object_get (G_OBJECT (l->data), "x", &x, "y", &y, NULL);
-          GValue xv = G_VALUE_INIT;
-          GValue yv = G_VALUE_INIT;
-          g_value_init (&xv, G_TYPE_INT);
-          g_value_init (&yv, G_TYPE_INT);
-          gtk_container_child_get_property (GTK_CONTAINER (c->container),
-                                            GTK_WIDGET (l->data), "x", &xv);
-          gtk_container_child_get_property (GTK_CONTAINER (c->container),
-                                            GTK_WIDGET (l->data), "y", &yv);
-          int x = g_value_get_int (&xv);
-          int y = g_value_get_int (&yv);
-          g_object_ref (l->data);
-          debug_print ("removing child from %p with x: %d, y: %d\n", c, x, y);
-          gtk_container_remove (GTK_CONTAINER (c->container),
-                                GTK_WIDGET (l->data));
-          gtk_fixed_put (GTK_FIXED (c->container), 
-                         GTK_WIDGET (l->data), x, y);
-          g_object_unref (l->data);
-        }
-
-      /*
-      for (GList *l = widgets; l != NULL; l = l->next)
-        {
-          gtk_container_add (GTK_CONTAINER (c->container),
-                             GTK_WIDGET (l->data));
-        }
-      */
-    }
+      webkit_move_to_frame (c, fixed);
   return true;
 }
 
@@ -892,6 +838,76 @@ webkit_move_to_focused_frame (emacs_env *env, ptrdiff_t n,
     webkit_move_to_focused_frame_internal (c, env);
   return Qnil;
 }
+
+static gboolean
+webview_close (WebKitWebView *webview, Client *c)
+{
+  debug_print ("webview_close %p\n", c);
+  assert (webview == c->view);
+  send_to_lisp (c, "webkit--close", "");
+  return TRUE;
+}
+
+static void
+window_destroy (GtkWidget *window, Client *c)
+{
+  debug_print ("window destroying %p\n", c);
+  if (c->container != NULL)
+    gtk_widget_destroy (c->container);
+  c->container = NULL;
+  c->view = NULL;
+  send_to_lisp (c, "webkit--close", "");
+}
+
+static void
+webview_destroy (WebKitWebView *webview, Client *c)
+{
+  debug_print ("webview_destroy %p\n", c);
+#ifdef DEBUG
+  print_widget_tree (gtk_window_list_toplevels());
+#endif
+  GtkFixed *fixed = find_fixed_widget (gtk_window_list_toplevels ());
+  if (fixed == NULL)
+    {
+      c->container = NULL;
+      c->view = NULL;
+      send_to_lisp (c, "webkit--close", "");
+    }
+  else 
+    {
+      webkit_move_to_frame (c, fixed);
+    }
+}
+
+static emacs_value
+webkit_destroy (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  debug_print ("destroying %p\n", c);
+  if (c != NULL)
+    {
+      //gtk_container_remove (GTK_CONTAINER (c->container), GTK_WIDGET (c->view));
+      gtk_widget_destroy (GTK_WIDGET (c->view));
+      debug_print ("destroyed c->view\n");
+      if (GTK_IS_WINDOW(c->container))
+        gtk_widget_destroy (c->container);
+
+      c->container = NULL;
+      c->view = NULL;
+    }
+  return Qnil;
+}
+
+static void
+client_free (void *ptr)
+{
+  debug_print ("freeing %p\n", ptr);
+  Client *c = (Client *)ptr;
+  assert (c->container == NULL);
+  assert (c->view == NULL);
+  free(c);
+}
+
 
 static emacs_value
 webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
@@ -937,6 +953,8 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
       gtk_widget_show_all (GTK_WIDGET (c->view));
     }
 
+  g_signal_connect (G_OBJECT (c->view), "destroy",
+                    G_CALLBACK(webview_destroy), c);
   g_signal_connect (G_OBJECT (c->view), "close",
                     G_CALLBACK(webview_close), c);
   //g_signal_connect (G_OBJECT (c->view), "key-press-event",
@@ -951,12 +969,12 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
                     G_CALLBACK (webview_notify_load_progress), c);
   g_signal_connect (G_OBJECT (c->view), "decide-policy",
                     G_CALLBACK (webview_decide_policy), c);
-  g_signal_connect(webkit_web_view_get_context(c->view), "download-started",
-                   G_CALLBACK(webcontext_download_started), c);
-  g_signal_connect(webkit_web_view_get_find_controller(c->view),
-                   "counted-matches",
-                   G_CALLBACK(findcontroller_counted_matches), c);
-
+  g_signal_connect (webkit_web_view_get_context (c->view), "download-started",
+                    G_CALLBACK (webcontext_download_started), c);
+  g_signal_connect (webkit_web_view_get_find_controller (c->view),
+                    "counted-matches",
+                    G_CALLBACK(findcontroller_counted_matches), c);
+  
 #ifdef DEBUG
   webkit_settings_set_enable_write_console_messages_to_stdout
     (webkit_web_view_get_settings (c->view), true);

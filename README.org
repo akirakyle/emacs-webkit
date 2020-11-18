@@ -23,8 +23,8 @@ etc.... Unfortunately given the complexity of the "modern" web, they all have to
 be based off of either the Blink (through QtWebEngine) or WebKit (through
 WebKitGTK) browser engines (I really wish Mozilla would put more effort into
 making a clean and maintained API for embedding the latest Gecko with rust
-components). I've shied away from Blink based browsers out of principles of
-wanting to avoid Google and the browser monoculture.
+components, i.e. servo). I've shied away from Blink based browsers out of
+principles of wanting to avoid Google and the browser monoculture.
 
 An attempt at adding a webkitgtk widget to Emacs with the experimental
 ~xwidgets~ feature was made many years ago and has received pretty minimal
@@ -71,6 +71,31 @@ project has given me a lot of chances to do so.
 
 * Installation
 
+Make sure you have gcc, pkg-config, gtk3, glib-networking, and of course
+webkitgtk installed. Then just run ~make~ to make ~webkit-module.so~. Some
+package managers support custom build steps and this can be added to them.
+
+Use ~(setq webkit-own-window t)~ if you...
+  
+#+begin_src emacs-lisp
+(use-package webkit
+  :init
+  (setq webkit-search-prefix "https://google.com/search?q=") ;; If you don't care so much about privacy
+  ;; (setq webkit-history-filename "~/path/to/webkit-history") ;; If you want history saved in a different place
+  ;; (setq webkit-history-filename nil) ;; If you don't want history saved to file (will stay in memory)
+  (setq webkit-ace-chars "aoeuidhtns") ;; More convienent if you use dvorak
+  :bind ("s-b" 'webkit) ;; Bind to whatever global key binding you want if you want
+  )
+#+end_src
+
+
+#+begin_src emacs-lisp
+(use-package evil-collection-webkit
+  :config
+  (evil-collection-xwidget-setup)
+  )
+#+end_src
+
 * Usage
 
 * TODO
@@ -78,3 +103,4 @@ project has given me a lot of chances to do so.
   - fix deleting a frame showing a webkit buffer
 - completing-read link completion/heading jumping
 - history table mode
+- progress and favicon on mode line?

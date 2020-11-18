@@ -44,11 +44,8 @@
 (defun webkit--echo-uri (uri)
   (message uri))
 
-(defun webkit--echo-progress (progress)
-  (message "%s%%" progress))
-
 (add-hook 'webkit-uri-changed-functions 'webkit--echo-uri)
-(add-hook 'webkit-progress-changed-functions 'webkit--echo-progress)
+
 (setq webkit-uri-changed-functions nil)
 (setq webkit-progress-changed-functions nil)
 
