@@ -1,15 +1,31 @@
 #+TITLE: ~emacs-webkit~
 #+SUBTITLE: A successor to ~xwidget-webkit~
 
-** Warning!
+** Warning 1!
 
 This package is still in the early stages of active development. While I am
-currently using it as a daily-driver, it should be considered as still in an
-alpha stage. This means that the public interface can and likely will change!
-Also, due to the nature of dynamic modules dealing with memory directly, bugs
-can mean segfaults, memory leaks, and ultimately untimely crashes. So beware
-that data loss may result! However, if you do experience crashes, please report
-it!
+currently using it daily, it should be considered as still in an alpha
+stage. This means that the public interface can and likely will change!  Also,
+due to the nature of dynamic modules dealing with memory directly, bugs can mean
+segfaults, memory leaks, and ultimately untimely crashes. So beware that data
+loss may result! However, if you do experience crashes, please report it!
+
+** Warning 2!
+
+Browsers are a big target of malware and as such ensuring you're running the
+most up to date version that receives security patches is essential. It is up to
+you to ensure you are running an up to date version of webkitgtk2. Note that not
+every distro consistently and quickly updates webkitgtk2 in its package
+repos. The WebKitGTK team publishes releases and security advisories [[https://webkitgtk.org/news.html][here]].
+
+Running in browser capable of javascript execution inside Emacs is potentially
+scary since inside Emacs, all code is trusted and usually has unrestricted
+access to your system. This is somewhat mitigated by webkitgtk2 using a
+multiprocessor model where website's content and scripts run in a separate
+process from UI, which in this case is Emacs. I'll make every effort to ensure
+that potentially malicious JavaScript cannot remotely execute arbitrary lisp,
+however my trust model will always treat user lisp code as trusted. Furthermore
+I make no grantees about the overall security of ~emacs-webkit~.
 
 * Background
 
@@ -23,22 +39,35 @@ etc.... Unfortunately given the complexity of the "modern" web, they all have to
 be based off of either the Blink (through QtWebEngine) or WebKit (through
 WebKitGTK) browser engines (I really wish Mozilla would put more effort into
 making a clean and maintained API for embedding the latest Gecko with rust
-components, i.e. servo). I've shied away from Blink based browsers out of
-principles of wanting to avoid Google and the browser monoculture.
+components, i.e. servo). I shy away from Blink based browsers out of principles
+of wanting to avoid Google and the browser monoculture and also because the only
+easy way to embed Blink is through QtWebEngine and I don't really like Qt all
+that much.
 
 An attempt at adding a webkitgtk widget to Emacs with the experimental
-~xwidgets~ feature was made many years ago and has received pretty minimal
+~xwidgets~ feature [[https://github.com/jave/xwidget-emacs][was made many years ago]] and has received pretty minimal
 development over the years. I think it isn't for lack of interest in the
 concept, but rather the difficulty of understanding the complicated dance that
-is Emacs redisplay and how xwidgets hacked themselves into that along with the
-"politics" of having a full featured browser inside Emacs core that could
-potentially execute non-free javascript. I figured that perhaps such a feature
-could be implemented instead as a dynamic module. This has the advantage of a
-clearer separation between Emacs' display handling and webkit's hopefully making
-it easier to workout the inevitable bugs that occur when forcing them to
+is Emacs redisplay and how xwidgets hacked themselves into that. Also the
+"politics" of having a full featured browser inside Emacs core that can
+potentially execute non-free javascript usually means much discussion on
+emacs-devel when trying to add new features. I figured that perhaps such a
+feature could be implemented instead as a dynamic module. This has the advantage
+of a clearer separation between Emacs' display handling and webkit's, hopefully
+making it easier to workout the inevitable bugs that occur when forcing them to
 coexist. This also allows features and fixes to be developed outside of Emacs
 core with less concern for supporting all the platforms and environments that
 Emacs needs to work with, while also avoiding some of the "political tensions".
+
+~emacs-webkit~ now has all of the features that the ~webkit xwidget~ has, plus
+more, such as integrating some features from [[https://github.com/canatella/xwwp][~xwwp~]]. I was also able to add
+experimental support for opening an non-embedded, dedicated webkit window. In
+principle this allows running ~emacs-webkit~ on a tty as webkit popus up its own
+window (of course one needs a graphical session to be running, i.e. ~$DISPLAY~
+needs to be set). In testing this, I've found there will always be behavior out
+of Emacs' control due to the window being at the mercy of the window manager, so
+things like focusing end up wonky and harder to control. To try this out: ~(setq
+webkit-own-window t)~.
 
 ** But what about the Emacs Application Framework (EAF)?
 
@@ -61,33 +90,47 @@ more for the lisp aficionado who wishes the web ran lisp instead of javascript
 and the Emacs user who wishes Emacs' underlying UI paradigm looked more like the
 web's DOM. I believe the nyxt developers want nyxt to essentially be a common
 lisp emacs. It is a massive undertaking and will take time for them to build an
-ecosystem like the one Emacs has developed over the decades. I thought about
-ways I could make nyxt integrate with Emacs in a way I would be happy with and
-it certainly would be possible to do so given the extensibility of nyxt. However
-I felt there would always be this friction between deciding who's UI to use (do
-I integrate Emacs buffers into nyxt's minibuffer or nyxts buffers into
-Emacs?). Finally I wanted an excuse to dig more into Emacs' C guts and this
-project has given me a lot of chances to do so.
+ecosystem like the one Emacs has developed over the decades. I've thought about
+how I could make nyxt integrate with Emacs in a way I would be happy with and
+I've found that while it is certainly possible to do so given nyxt's
+extensibility, I felt like there would always be some friction. For example
+who's UI should I use? Do I integrate Emacs buffer list into nyxt's minibuffer
+or nyxts buffer list into Emacs? Finally I wanted an excuse to dig more into
+Emacs' C guts and this project has given me a lot of chances to do so.
 
 * Installation
 
+Once things stabilize a bit and I'll package this for MELPA.
+
+~emacs-webkit~ requires at least Emacs 28
+
 Make sure you have gcc, pkg-config, gtk3, glib-networking, and of course
 webkitgtk installed. Then just run ~make~ to make ~webkit-module.so~. Some
-package managers support custom build steps and this can be added to them.
+package managers support custom build steps and so it should be simple to add a
+recipe to build the module to them. I'm currently a bit hesitant to add lisp
+code to do this automagically or fetch prebuilt modules from the web like
+~pdf-tools~ or ~emacs-libvterm~, because I'm a believer that it should be the
+job of a package manager, but perhaps I'll be convinced otherwise.
 
-Use ~(setq webkit-own-window t)~ if you...
-  
+Once ~emacs-webkit~ is on your load-path you can just ~(require 'webkit)~ or if
+you use ~use-package~ here's an annotated recipe:
+
 #+begin_src emacs-lisp
 (use-package webkit
+  :bind ("s-b" 'webkit) ;; Bind to whatever global key binding you want if you want
   :init
   (setq webkit-search-prefix "https://google.com/search?q=") ;; If you don't care so much about privacy
+  (setq webkit-ace-chars "aoeuidhtns") ;; More convienent if you use dvorak
   ;; (setq webkit-history-filename "~/path/to/webkit-history") ;; If you want history saved in a different place
   ;; (setq webkit-history-filename nil) ;; If you don't want history saved to file (will stay in memory)
-  (setq webkit-ace-chars "aoeuidhtns") ;; More convienent if you use dvorak
-  :bind ("s-b" 'webkit) ;; Bind to whatever global key binding you want if you want
+  ;; (setq webkit-own-window t) ;; See above explination; must be set before webkit.el is loaded
+  :config
+  ;; (add-hook 'webkit-new-hook #'webkit-enable-javascript) ;; disable javascript
   )
 #+end_src
 
+I personally use evil so I've included ~evil-collection~ bindings which I hope
+to upstream at some point when things stabilize.
 
 #+begin_src emacs-lisp
 (use-package evil-collection-webkit
@@ -98,9 +141,32 @@ Use ~(setq webkit-own-window t)~ if you...
 
 * Usage
 
-* TODO
-- Handle multiple frames
-  - fix deleting a frame showing a webkit buffer
-- completing-read link completion/heading jumping
-- history table mode
-- progress and favicon on mode line?
+- ~M-x webkit~
+- Enter url or keywords to search
+- ~C-h m~ (~describe-mode~) to see keybindings.
+- Feel the power (and weight) of a browser running inside Emacs.
+
+~emacs-webkit~ has a concept of an "insert" mode, which moves keyboard focus to
+the ~webview~ from Emacs. This means the webview will see all key-presses and
+Emacs will only see the modifier keypresses that are unhandled by the
+webview. This is useful for typing in a text box or using the keyboard shortcuts
+a website might set up. To return focus back to Emacs use ~C-g~. Some features
+such as ~webkit-ace~ have a javascript component that requires moving to insert
+mode. Sometimes javascript is buggy or crashes in which case you may be left
+surprised that Emacs isn't responding to you. ~C-g~ is your friend here, as
+always.
+
+~webkit-start-web-inspector~ will start webkit's built in dev tools. Beware that
+the handling of focus can be pretty wonky.
+
+* TODO Roadmap
+- Fix issue when ~tool-bar-mode~ or ~menu-bar-mode~ enabled.
+- Enable webkitgtk process sandboxing
+- Download requests
+- Make search incremental
+- Web extensions + Ad block
+- Browsing sessions/data and cookie management
+- Proxy settings
+- ~completing-read~ link completion/heading jumping
+- History ~display-table~ mode
+- Load progress and favicon on mode line

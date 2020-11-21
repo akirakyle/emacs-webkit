@@ -905,6 +905,17 @@ client_free (void *ptr)
 static emacs_value
 webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
+  int argc = 0;
+  char **argv = NULL;
+
+  if (!gtk_init_check (&argc, &argv))
+    {
+      env->non_local_exit_signal
+        (env, env->intern (env, "webkit-module-init-gtk-failed"),
+         env->intern (env, "nil"));
+      return Qnil;
+    }
+
   Client *c;
   if (!(c = calloc (1, sizeof (Client))))
     {
@@ -946,9 +957,10 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
       GtkFixed *fixed = find_focused_fixed_widget ();
       if (fixed == NULL)
         {
+          const char *err_msg = "webkit-module-no-focused-fixed-widget";
           env->non_local_exit_signal
-            (env, env->intern (env, "webkit-module-no-focused-fixed-widget"),
-             env->intern (env, "nil"));
+            (env, env->intern (env, err_msg),
+             env->make_string (env, err_msg, strlen (err_msg)));
           return Qnil;
         }
       webview_change_container (c, fixed);
@@ -996,6 +1008,26 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 }
 
 static void
+make_and_bind_function (emacs_env *env,
+                        ptrdiff_t min_arity,
+                        ptrdiff_t max_arity,
+                        emacs_value (*func) (emacs_env *env,
+                                             ptrdiff_t nargs,
+                                             emacs_value* args,
+                                             void *data),
+                        const char *name,
+                        const char *docstring,
+                        void *data)
+{
+  emacs_value Sfun = env->make_function (env, min_arity, max_arity,
+                                         func, docstring, data);
+  emacs_value Qfset = env->intern (env, "fset");
+  emacs_value Qsym = env->intern (env, name);
+
+  env->funcall (env, Qfset, 2, (emacs_value[]){Qsym, Sfun});
+}
+
+static void
 bind_function (emacs_env *env, const char *name, emacs_value Sfun)
 {
   emacs_value Qfset = env->intern (env, "fset");
@@ -1008,30 +1040,15 @@ int
 emacs_module_init (struct emacs_runtime *ert)
 {
   emacs_env *env = ert->get_environment (ert);
-  int argc = 0;
-  char **argv = NULL;
-  if (!gtk_init_check (&argc, &argv))
-    {
-      env->non_local_exit_signal
-        (env, env->intern (env, "webkit-module-init-gtk-failed"),
-         env->intern (env, "nil"));
-      return 1;
-    }
-
   // Symbols
   Qt = env->make_global_ref (env, env->intern(env, "t"));
   Qnil = env->make_global_ref (env, env->intern(env, "nil"));
 
-  // Functions
   emacs_value fun;
-  fun = env->make_function (env, 2, 2, webkit_new, "", NULL);
-  bind_function (env, "webkit--new", fun);
-
-  fun = env->make_function (env, 1, 1, webkit_destroy, "", NULL);
-  bind_function (env, "webkit--destroy", fun);
-
-  fun = env->make_function (env, 5, 5, webkit_resize, "", NULL);
-  bind_function (env, "webkit--resize", fun);
+  // Functions
+  make_and_bind_function (env, 2, 2, webkit_new, "webkit--new", "", NULL);
+  make_and_bind_function (env, 1, 1, webkit_destroy, "webkit--destroy", "", NULL);
+  make_and_bind_function (env, 5, 5, webkit_resize, "webkit--resize", "", NULL);
 
   fun = env->make_function (env, 2, 2, webkit_move_to_frame, "", NULL);
   bind_function (env, "webkit--move-to-frame", fun);
@@ -1072,7 +1089,7 @@ emacs_module_init (struct emacs_runtime *ert)
   fun = env->make_function (env, 2, 2, webkit_load_uri, "", NULL);
   bind_function (env, "webkit--load-uri", fun);
 
-  fun = env->make_function (env, 2, 2, webkit_search, "", NULL);
+  fun = env->make_function (env, 2, 3, webkit_search, "", NULL);
   bind_function (env, "webkit--search", fun);
 
   fun = env->make_function (env, 1, 1, webkit_search_finish, "", NULL);

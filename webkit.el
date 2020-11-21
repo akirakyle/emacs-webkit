@@ -2,10 +2,10 @@
 
 ;; Copyright (C) 2020 Akira Kyle
 
-;; Author: Akira Kyle <ak@akirakyle.com>
-;; URL: https://github.com/
+;; Author: Akira Kyle <akira@akirakyle.com>
+;; URL: https://github.com/akirakyle/emacs-webkit
 ;; Version: 0.1
-;; Package-Requires: ((emacs "28.1"))
+;; Package-Requires: ((emacs "28.0"))
 
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -21,7 +21,7 @@
 ;; see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
-;; webkit dynamic module
+;; See README.org
 
 ;;; Code:
 
@@ -56,21 +56,25 @@
 (declare-function webkit--register-script-message "webkit-module")
 (declare-function webkit--unregister-script-message "webkit-module")
 
+(declare-function webkit-history-completing-read prompt "webkit-history")
+
+(defconst webkit--base (file-name-directory load-file-name))
+
 (defun webkit--file-to-string (filename)
   (with-temp-buffer
     (insert-file-contents filename)
     (buffer-string)))
 
-(defconst webkit--base (file-name-directory load-file-name))
-
-(require 'webkit-module)
-(require 'webkit-history)
-(require 'webkit-ace)
 (require 'browse-url)
 (require 'eww)
 
+(defvar webkit--id)
+(defvar webkit--buffers)
+(defvar webkit--script)
+(defvar webkit--style)
+
 (defgroup webkit nil
-  "webkit browser ."
+  "The dynamic module webkit browser."
   :group 'convenience)
 
 (defcustom webkit-search-prefix "https://duckduckgo.com/html/?q="
@@ -96,6 +100,12 @@ webkit-new is run in order for embedding to work."
     (define-key map "+" 'webkit-zoom-in)
     (define-key map "-" 'webkit-zoom-out)
     (define-key map (kbd "C-y") 'webkit-copy-selection)
+    (define-key map (kbd "C-l") 'webkit-copy-url)
+
+    (define-key map (kbd "C-s C-s") 'webkit-search)
+    (define-key map (kbd "C-s s") 'webkit-search-next)
+    (define-key map (kbd "C-s r") 'webkit-search-previous)
+    (define-key map (kbd "C-s c") 'webkit-search-finish)
 
     ;;similar to image mode bindings
     (define-key map (kbd "SPC")                 'webkit-scroll-up)
@@ -158,12 +168,12 @@ Negative ARG scrolls down."
 (defun webkit-scroll-up (&optional webkit-id)
   "Scroll webkit up by full window height."
   (interactive)
-  (webkit-scroll-by-percent 1))
+  (webkit-scroll-by-percent 1 webkit-id))
 
 (defun webkit-scroll-down (&optional webkit-id)
   "Scroll webkit down by full window height."
   (interactive)
-  (webkit-scroll-by-percent -1))
+  (webkit-scroll-by-percent -1 webkit-id))
 
 (defun webkit-scroll-up-line (&optional n webkit-id)
   "Scroll webkit up by N lines.
@@ -171,7 +181,7 @@ The height of line is calculated with `window-font-height'.
 Stop if the bottom edge of the page is reached.
 If N is omitted or nil, scroll up by one line."
   (interactive "p")
-  (webkit-scroll-by-pixels (* n (window-font-height))))
+  (webkit-scroll-by-pixels (* n (window-font-height)) webkit-id))
 
 (defun webkit-scroll-down-line (&optional n webkit-id)
   "Scroll webkit down by N lines.
@@ -179,7 +189,7 @@ The height of line is calculated with `window-font-height'.
 Stop if the top edge of the page is reached.
 If N is omitted or nil, scroll down by one line."
   (interactive "p")
-  (webkit-scroll-by-pixels (* (* -1 n) (window-font-height))))
+  (webkit-scroll-by-pixels (* (* -1 n) (window-font-height)) webkit-id))
 
 (defun webkit-scroll-forward (&optional n webkit-id)
   "Scroll webkit horizontally by N chars.
@@ -288,10 +298,12 @@ disable it otherwise."
   (webkit--focus (or webkit-id webkit--id)))
 
 (defun webkit--callback-unfocus (val)
+  (ignore val)
   (message "C-g pressed in webkit... exiting insert mode")
   (webkit--unfocus webkit--id))
 
 (defun webkit--load-finished (msg)
+  (ignore msg)
   (run-hooks 'webkit-load-finished-hook))
 
 (defun webkit--callback-title (title)
@@ -305,7 +317,7 @@ disable it otherwise."
                       (string-to-number progress)))
 
 (defun webkit--echo-progress (progress)
-  (message "%.0f%%" progress))
+  (message "Loading %.0f%%..." progress))
 
 (defun webkit--callback-new-view (uri)
   (webkit-new uri))
@@ -335,7 +347,7 @@ disable it otherwise."
           (funcall (intern id) msg))))))
 
 (defun webkit--adjust-size (frame)
-  "Adjust webkit size for window in FRAME"
+  (ignore frame)
   ;;(message "adjusting size...")
   (dolist (buffer webkit--buffers)
     (when (buffer-live-p buffer)
@@ -361,16 +373,6 @@ disable it otherwise."
               (dolist (window hide-windows)
                 (switch-to-prev-buffer window)))))))))
 
-(defun webkit--close (msg)
-  (set-process-query-on-exit-flag (get-buffer-process (current-buffer)) nil)
-  (kill-this-buffer))
-
-(defun webkit--kill-buffer ()
-  (when (eq major-mode 'webkit-mode)
-    ;;(webkit--hide webkit--id)
-    (webkit--destroy webkit--id)
-    (setq webkit--buffers (delq (current-buffer) webkit--buffers))))
-
 (defun webkit--delete-frame (frame)
   (let* ((new-frame (car (seq-filter
                           (lambda (elt)
@@ -379,15 +381,20 @@ disable it otherwise."
                                      (not (display-graphic-p elt)))))
                           (frame-list))))
          (win-id (string-to-number (frame-parameter new-frame 'window-id))))
-    (message "moving to %d %S" win-id new-frame)
     (seq-map (lambda (buffer) (with-current-buffer buffer
                                 (webkit--move-to-frame webkit--id win-id)))
              webkit--buffers)))
 
-(setq webkit--script (webkit--file-to-string
-                         (expand-file-name "script.js" webkit--base)))
-(setq webkit--style (webkit--file-to-string
-                        (expand-file-name "style.css" webkit--base)))
+(defun webkit--close (msg)
+  (ignore msg)
+  (set-process-query-on-exit-flag (get-buffer-process (current-buffer)) nil)
+  (kill-this-buffer))
+
+(defun webkit--kill-buffer ()
+  (when (eq major-mode 'webkit-mode)
+    (webkit--hide webkit--id)
+    (webkit--destroy webkit--id)
+    (setq webkit--buffers (delq (current-buffer) webkit--buffers))))
 
 (defun webkit-new (&optional url buffer-name noquery)
   "Create a new webkit with URL
@@ -444,8 +451,12 @@ If called with a prefix ARG, create a new webkit buffer instead of reusing
 the default webkit buffer."
   (interactive
    (let ((prompt "URL or keywords: "))
-     (list (webkit-history-completing-read prompt)
-           (prefix-numeric-value current-prefix-arg))))
+     (list 
+      (if (require 'webkit-history nil t)
+          (webkit-history-completing-read prompt)
+        (read-string prompt))
+      (prefix-numeric-value current-prefix-arg))))
+  (require 'webkit-ace nil t)
   (let ((eww-search-prefix webkit-search-prefix))
     (webkit-browse-url (eww--dwim-expand-url url) (eq arg 4))))
 
@@ -453,17 +464,27 @@ the default webkit buffer."
   "webkit view mode."
   (setq buffer-read-only nil))
 
+(unless (require 'webkit-module nil t)
+  (error "webkit needs `webkit-module' to be compiled!"))
+
+;;(defun webkit-setup ()
+;;  "Setup various hooks necessary for webkit to work.
+;;`webkit-own-window' must be set to desired value before this is called."
+
 (make-variable-buffer-local 'webkit--id)
 (setq webkit--buffers nil)
 
+(setq webkit--script (webkit--file-to-string
+                    (expand-file-name "script.js" webkit--base)))
+(setq webkit--style (webkit--file-to-string
+                    (expand-file-name "style.css" webkit--base)))
 (unless webkit-own-window
-  (add-hook 'window-size-change-functions #'webkit--adjust-size))
-;;(remove-hook 'window-size-change-functions #'webkit--adjust-size)
+(add-hook 'window-size-change-functions #'webkit--adjust-size)
+(add-hook 'delete-frame-functions #'webkit--delete-frame))
 
 (add-hook 'webkit-title-changed-functions 'webkit-rename-buffer)
 (add-hook 'webkit-progress-changed-functions 'webkit--echo-progress)
 (add-hook 'kill-buffer-hook #'webkit--kill-buffer)
-(add-hook 'delete-frame-functions #'webkit--delete-frame)
 
 (provide 'webkit)
 ;;; webkit.el ends here
