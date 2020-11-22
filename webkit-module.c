@@ -720,6 +720,7 @@ webcontext_download_started (WebKitWebContext *webctx, WebKitDownload *download,
     send_to_lisp (c, "webkit--callback-download-request", uri);
 } 
 
+/*
 #ifdef DEBUG
 static void
 print_widget_tree (GList *widgets)
@@ -727,8 +728,13 @@ print_widget_tree (GList *widgets)
   for (GList *l = widgets; l != NULL; l = l->next)
     {
       char *path = gtk_widget_path_to_string (gtk_widget_get_path (l->data));
-      debug_print ("widget %p; fixed %d; path %s\n", l->data,
-                   GTK_IS_FIXED (l->data), path);
+      const char *type_name = G_OBJECT_TYPE_NAME (l->data);
+      //debug_print ("widget %p; fixed %d; path %s\n", l->data,
+      //             GTK_IS_FIXED (l->data), path);
+      if (GTK_IS_MENU(l->data))
+        continue;
+      debug_print ("widget %p; fixed %d; type %s\n", l->data,
+                   GTK_IS_FIXED (l->data), type_name);
       if (GTK_IS_WINDOW (l->data))
         debug_print ("  ->window; focused %d; title %s\n",
                      gtk_window_has_toplevel_focus (l->data),
@@ -738,17 +744,24 @@ print_widget_tree (GList *widgets)
     }
 }
 #endif
+*/
 
 static GtkFixed *
 find_fixed_widget (GList *widgets)
 {
   for (GList *l = widgets; l != NULL; l = l->next)
     {
+      debug_print ("widget %p; fixed %d; type %s\n", l->data,
+                   GTK_IS_FIXED (l->data), G_OBJECT_TYPE_NAME (l->data));
       if (GTK_IS_FIXED (l->data))
         return l->data;
-      if (GTK_IS_CONTAINER (l->data))
-        return find_fixed_widget (gtk_container_get_children
-                                  (GTK_CONTAINER (l->data)));
+      if (GTK_IS_BOX (l->data))
+        {
+          GtkFixed *fixed = find_fixed_widget (gtk_container_get_children
+                                               (GTK_CONTAINER (l->data)));
+          if (fixed != NULL)
+            return fixed;
+        }
     }
   return NULL;
 }
@@ -758,9 +771,13 @@ find_focused_fixed_widget ()
 {
   GList *widgets = gtk_window_list_toplevels ();
   for (GList *l = widgets; l != NULL; l = l->next)
-    if (gtk_window_has_toplevel_focus (l->data))
-      return find_fixed_widget (gtk_container_get_children
-                                (GTK_CONTAINER (l->data)));
+    {
+      debug_print ("window %p focused %d\n", l->data,
+                   gtk_window_has_toplevel_focus (l->data));
+      if (gtk_window_has_toplevel_focus (l->data))
+        return find_fixed_widget (gtk_container_get_children
+                                  (GTK_CONTAINER (l->data)));
+    }
   return NULL;
 }
 
@@ -808,7 +825,7 @@ webkit_move_to_frame (emacs_env *env, ptrdiff_t n,
   intmax_t window_id = env->extract_integer(env, args[1]);
   Client *c = get_client (env, args[0]);
 #ifdef DEBUG
-  print_widget_tree (gtk_window_list_toplevels());
+  //print_widget_tree (gtk_window_list_toplevels());
 #endif
   debug_print ("moving %p to window_id %p\n", c, (void *)window_id);
   if (c != NULL)
@@ -817,6 +834,8 @@ webkit_move_to_frame (emacs_env *env, ptrdiff_t n,
       GList *widgets = gtk_window_list_toplevels ();
       for (GList *l = widgets; l != NULL; l = l->next)
         {
+          debug_print ("window %p focused %d\n", l->data,
+                       gtk_window_has_toplevel_focus (l->data));
           if (l->data == (void *)window_id)
             {
               GtkFixed *fixed = find_fixed_widget (gtk_container_get_children
@@ -936,7 +955,7 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   //gtk_widget_set_focus_on_click (GTK_WIDGET (c->view), FALSE);
 
 #ifdef DEBUG
-  print_widget_tree (gtk_window_list_toplevels());
+  //print_widget_tree (gtk_window_list_toplevels());
 #endif
   if (env->is_not_nil (env, args[1]))
     {
