@@ -416,11 +416,8 @@ Returns the newly created webkit buffer"
        webkit--id "webkit--callback-unfocus")
       (webkit--add-user-script webkit--id webkit--script)
       (webkit--add-user-style webkit--id webkit--style)
-      (when url (webkit--load-uri webkit--id url))
-      ;; hack necessary to get correct z-ordering
-      ;;(when (fboundp 'posframe-delete-all)
-      ;;  (posframe-delete-all))
       (run-hooks 'webkit-new-hook)
+      (when url (webkit--load-uri webkit--id url))
       (switch-to-buffer buffer))))
 
 ;;;###autoload

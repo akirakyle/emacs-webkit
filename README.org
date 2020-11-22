@@ -172,14 +172,13 @@ always.
 ~webkit-start-web-inspector~ will start webkit's built in dev tools. Beware that
 the handling of focus can be pretty wonky.
 
-* TODO Roadmap
-- Fix issue when ~tool-bar-mode~ or ~menu-bar-mode~ enabled.
-- Enable webkitgtk process sandboxing
+* TODO Roadmap (roughly in order of my priorities)
 - Download requests
-- Make search incremental
-- Web extensions + Ad block
 - Browsing sessions/data and cookie management
 - Proxy settings
+- Enable webkitgtk process sandboxing
+- Make search incremental
 - ~completing-read~ link completion/heading jumping
+- Web extensions + Ad block
 - History ~display-table~ mode
 - Load progress and favicon on mode line
