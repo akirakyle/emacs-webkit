@@ -486,5 +486,8 @@ the default webkit buffer."
 (add-hook 'webkit-progress-changed-functions 'webkit--echo-progress)
 (add-hook 'kill-buffer-hook #'webkit--kill-buffer)
 
+(when (version< emacs-version "28.0")
+  (error "webkit requires an Emacs version > 28"))
+
 (provide 'webkit)
 ;;; webkit.el ends here
