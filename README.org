@@ -107,12 +107,7 @@ Once things stabilize a bit, I'll probably package this for MELPA.
 ~emacs-webkit~ requires at least Emacs 28
 
 Make sure you have gcc, pkg-config, gtk3, glib-networking, and of course
-webkitgtk installed. Then just run ~make~ to make ~webkit-module.so~. Some
-package managers support custom build steps and so it should be simple to add a
-recipe to build the module to them. I'm currently a bit hesitant to add lisp
-code to do this automagically or fetch prebuilt modules from the web like
-~pdf-tools~ or ~emacs-libvterm~, because I'm a believer that it should be the
-job of a package manager, but perhaps I'll be convinced otherwise.
+webkitgtk installed. Then just run ~make~ to make ~webkit-module.so~.
 
 Once ~emacs-webkit~ is on your load-path you can just ~(require 'webkit)~ or if
 you use ~use-package~ here's an annotated recipe:
@@ -140,6 +135,22 @@ to upstream at some point when things stabilize.
   (evil-collection-xwidget-setup)
   )
 #+end_src
+
+Some package managers support custom build steps to automate building. For
+example with the latest [[https://github.com/raxod502/straight.el/][straight.el]] you can use this recipe
+
+#+begin_src emacs-lisp
+(straight-use-package
+ '(webkit :type git :host github :repo "akirakyle/emacs-webkit"
+          :branch "main"
+          :files (:defaults "*.js" "*.css")
+          :build ("make")))
+#+end_src
+
+I'm a bit hesitant to add lisp code to do this automagically or fetch prebuilt
+modules from the web like ~pdf-tools~ or ~emacs-libvterm~, because I'm a
+believer that it should be the job of a package manager, but perhaps I'll be
+convinced otherwise.
 
 * Usage
 
