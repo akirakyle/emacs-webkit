@@ -30,7 +30,7 @@
 
 (defvar webkit--id)
 
-(defcustom webkit-history-filename "~/.emacs.d/webkit-history"
+(defcustom webkit-history-filename (locate-user-emacs-file "webkit-history")
   "File to store history of `webkit' sessions."
   :type 'file
   :group 'webkit)
