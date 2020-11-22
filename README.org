@@ -1,6 +1,8 @@
 #+TITLE: ~emacs-webkit~
 #+SUBTITLE: A successor to ~xwidget-webkit~
 
+[[file:screencast.gif][Watch it in action!]]
+
 ** Warning 1!
 
 This package is still in the early stages of active development. While I am
