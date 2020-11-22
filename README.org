@@ -1,7 +1,7 @@
 #+TITLE: ~emacs-webkit~
 #+SUBTITLE: A successor to ~xwidget-webkit~
 
-[[file:screencast.gif][Watch it in action!]]
+#+html: <p align="center"><img src="screencast.gif" /></p>
 
 ** Warning 1!
 
@@ -102,7 +102,7 @@ Emacs' C guts and this project has given me a lot of chances to do so.
 
 * Installation
 
-Once things stabilize a bit and I'll package this for MELPA.
+Once things stabilize a bit, I'll probably package this for MELPA.
 
 ~emacs-webkit~ requires at least Emacs 28
 
