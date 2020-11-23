@@ -322,8 +322,20 @@ disable it otherwise."
   (run-hook-with-args 'webkit-progress-changed-functions
                       (string-to-number progress)))
 
-(defun webkit--echo-progress (progress)
-  (message "Loading %.0f%%..." progress))
+(defvar-local webkit--progress-formatted nil
+  "Formatted string for display of the load progress.
+Padded with spaces if necessary.")
+
+(defun webkit--display-progress (progress)
+  "Set `webkit--progress-formatted' to the formatted string of PROGRESS.
+
+`webkit--progress-formatted' should be then displayed in the
+modeline as a part of `mode-name'"
+  (setq webkit--progress-formatted
+        (if (equal progress 100.0)
+            ""
+          (format "loading:%.0f%% " progress)))
+  (force-mode-line-update))
 
 (defun webkit--callback-new-view (uri)
   (webkit-new uri))
@@ -463,7 +475,8 @@ the default webkit buffer."
   (let ((eww-search-prefix webkit-search-prefix))
     (webkit-browse-url (eww--dwim-expand-url url) (eq arg 4))))
 
-(define-derived-mode webkit-mode special-mode "WebKit"
+(define-derived-mode webkit-mode special-mode
+  '("" webkit--progress-formatted (:eval (webkit--format-state)) "WebKit")
   "webkit view mode."
   (setq buffer-read-only nil))
 
@@ -486,7 +499,7 @@ the default webkit buffer."
 (add-hook 'delete-frame-functions #'webkit--delete-frame))
 
 (add-hook 'webkit-title-changed-functions 'webkit-rename-buffer)
-(add-hook 'webkit-progress-changed-functions 'webkit--echo-progress)
+(add-hook 'webkit-progress-changed-functions 'webkit--display-progress)
 (add-hook 'kill-buffer-hook #'webkit--kill-buffer)
 
 (when (version< emacs-version "28.0")
