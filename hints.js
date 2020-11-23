@@ -26,52 +26,48 @@ var __WKViewHints = Object.freeze((function(){
     }
   }
 
-  function cleanup(event) {
-    console.log("cleaning up");
-    hints.forEach(hint => hint.remove());
-    document.removeEventListener('keydown', readKey);
-    window.webkit.messageHandlers["webkit--callback-unfocus"].postMessage('');
-    hints = [];
-  }
+  return {
+    init: function(hintKeys) {
+      let N = hintKeys.length
+      let tags = 'button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])';
+      let elems = document.querySelectorAll(tags);
+      let hintPadLen = Math.ceil(Math.log(elems.length)/Math.log(N))
+      let idxToHintText = function (idx) {
+        return idx.toString(N).padStart(hintPadLen, '0').split('').map(
+          digit => hintKeys.charAt(parseInt(digit, N))).join('');};
 
-  function readKey(event) {
-    let key = event.key
-    let newHints = hints.filter(hint => hint.innerText.startsWith(key));
-    if (newHints.length > 1){
-      hints.forEach(function (hint) {
-        if (!hint.innerText.startsWith(key))
-          hint.remove();
-      });
-      newHints.forEach(function (hint) {
-        hint.innerText = hint.innerText.substring(1)
-      });
-      hints = newHints;
-    }
-    else if (newHints.length == 1){
-      let selected = newHints[0].parentNode;
-      console.log(selected);
-      cleanup();
-      selected.focus();
-      selected.click();
-    }
-    else {
-      cleanup();
-    }
-  }
+      elems.forEach((elem, idx) => addHint(elem, idxToHintText(idx)));
 
-  return function(hintKeys) {
-    let N = hintKeys.length
-    let tags = 'button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])';
-    let elems = document.querySelectorAll(tags);
-    let hintPadLen = Math.ceil(Math.log(elems.length)/Math.log(N))
-    let idxToHintText = function (idx) {
-      return idx.toString(N).padStart(hintPadLen, '0').split('').map(
-        digit => hintKeys.charAt(parseInt(digit, N))).join('');};
-
-    elems.forEach((elem, idx) => addHint(elem, idxToHintText(idx)));
-
-    document.addEventListener('keydown', readKey);
-    return hints.length;
+      return hints.length;
+    },
+    update: function(key) {
+      let newHints = hints.filter(hint => hint.innerText.startsWith(key));
+      if (newHints.length > 1){
+        hints.forEach(function (hint) {
+          if (!hint.innerText.startsWith(key))
+            hint.remove();
+        });
+        newHints.forEach(function (hint) {
+          hint.innerText = hint.innerText.substring(1)
+        });
+        hints = newHints;
+        return hints.length;
+      }
+      else if (newHints.length == 1){
+        let selected = newHints[0].parentNode;
+        console.log(selected);
+        hints.forEach(hint => hint.remove());
+        hints = [];
+        selected.focus();
+        selected.click();
+        return 1;
+      }
+      else {
+        hints.forEach(hint => hint.remove());
+        hints = [];
+        return -1;
+      }
+    },
   };
 })());
 

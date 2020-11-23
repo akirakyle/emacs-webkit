@@ -82,6 +82,12 @@
   :group 'webkit
   :type 'string)
 
+(defcustom webkit-browse-url-force-new nil
+  "Whether webkit should use always open a new session instead of
+reusing a current one."
+  :group 'webkit
+  :type 'boolean)
+
 (defcustom webkit-own-window nil
   "Whether webkit should use its own window instead of
 attemptting to embed itself in its buffer. The curretly focused
@@ -343,7 +349,7 @@ disable it otherwise."
         (let ((id (match-string 1))
               (msg (match-string 2)))
           (delete-region 1 (match-end 0))
-          ;;(message "id: %s; message: %s" id msg)
+          (message "id: %s; message: %s" id msg)
           (funcall (intern id) msg))))))
 
 (defun webkit--adjust-size (frame)
@@ -426,8 +432,8 @@ Returns the newly created webkit buffer"
 
 NEW-SESSION specifies whether to create a new webkit session or use the 
 current session."
-  (interactive (progn (browse-url-interactive-arg "URL: ")))
-  (if (or new-session (not webkit--buffers))
+  (interactive (browse-url-interactive-arg "URL: "))
+  (if (or new-session (not webkit--buffers) webkit-browse-url-force-new)
       (webkit-new url)
     (let* ((id (or webkit--id (with-current-buffer (car webkit--buffers)
                                webkit--id)))

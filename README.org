@@ -121,6 +121,8 @@ you use ~use-package~ here's an annotated recipe:
   ;; (setq webkit-history-filename "~/path/to/webkit-history") ;; If you want history saved in a different place
   ;; (setq webkit-history-filename nil) ;; If you don't want history saved to file (will stay in memory)
   ;; (setq webkit-own-window t) ;; See above explination; must be set before webkit.el is loaded
+  ;; (setq browse-url-browser-function 'webkit-browse-url) ; Set as the default browse-url browser
+  ;; (setq webkit-browse-url-force-new t) ; Always open a new session instead of reusing a current one
   :config
   ;; (add-hook 'webkit-new-hook #'webkit-enable-javascript) ;; disable javascript
   )
@@ -178,6 +180,7 @@ the handling of focus can be pretty wonky.
 - Proxy settings
 - Enable webkitgtk process sandboxing
 - Make search incremental
+- Dark mode
 - ~completing-read~ link completion/heading jumping
 - Web extensions + Ad block
 - History ~display-table~ mode
