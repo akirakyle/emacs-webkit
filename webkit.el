@@ -349,7 +349,7 @@ disable it otherwise."
         (let ((id (match-string 1))
               (msg (match-string 2)))
           (delete-region 1 (match-end 0))
-          (message "id: %s; message: %s" id msg)
+          ;(message "id: %s; message: %s" id msg)
           (funcall (intern id) msg))))))
 
 (defun webkit--adjust-size (frame)

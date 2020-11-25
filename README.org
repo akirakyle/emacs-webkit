@@ -20,14 +20,14 @@ you to ensure you are running an up to date version of webkitgtk2. Note that not
 every distro consistently and quickly updates webkitgtk2 in its package
 repos. The WebKitGTK team publishes releases and security advisories [[https://webkitgtk.org/news.html][here]].
 
-Running in browser capable of javascript execution inside Emacs is potentially
+Running a browser capable of javascript execution inside Emacs is potentially
 scary since inside Emacs, all code is trusted and usually has unrestricted
 access to your system. This is somewhat mitigated by webkitgtk2 using a
-multiprocessor model where website's content and scripts run in a separate
-process from UI, which in this case is Emacs. I'll make every effort to ensure
-that potentially malicious JavaScript cannot remotely execute arbitrary lisp,
-however my trust model will always treat user lisp code as trusted. Furthermore
-I make no grantees about the overall security of ~emacs-webkit~.
+multiprocess model where website's content and scripts run in a separate process
+from UI, which in this case is Emacs. I'll make every effort to ensure that
+potentially malicious JavaScript cannot remotely execute arbitrary lisp, however
+my trust model will always treat user lisp code as trusted. Furthermore I make
+no grantees about the overall security of ~emacs-webkit~.
 
 * Background
 
@@ -180,6 +180,7 @@ the handling of focus can be pretty wonky.
 - Proxy settings
 - Enable webkitgtk process sandboxing
 - Make search incremental
+- bookmarks.el
 - Dark mode
 - ~completing-read~ link completion/heading jumping
 - Web extensions + Ad block
