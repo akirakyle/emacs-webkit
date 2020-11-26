@@ -76,8 +76,8 @@ webkit-own-window t)~.
 While I think its neat what EAF has been able to do, I personally have less of a
 desire to dive into its code due to its reliance on Qt (and hence Blink for its
 browser component) and python, and I suspect this may be a barrier for others as
-well. Furthermore I don't think it has a technical path forward to cleanly
-working on Wayland due to its reliance on the XEmbed protocol. My goal with
+well. Furthermore, I don't think it has a technical path forward to natively
+work on Wayland due to its current reliance on the XEmbed protocol. My goal with
 ~emacs-webkit~ was to have something that will work with pgtk port of Emacs (in
 fact I primarily developed it on Wayland running pgtk Emacs).
 
@@ -109,35 +109,6 @@ Once things stabilize a bit, I'll probably package this for MELPA.
 Make sure you have gcc, pkg-config, gtk3, glib-networking, and of course
 webkitgtk installed. Then just run ~make~ to make ~webkit-module.so~.
 
-Once ~emacs-webkit~ is on your load-path you can just ~(require 'webkit)~ or if
-you use ~use-package~ here's an annotated recipe:
-
-#+begin_src emacs-lisp
-(use-package webkit
-  :bind ("s-b" 'webkit) ;; Bind to whatever global key binding you want if you want
-  :init
-  (setq webkit-search-prefix "https://google.com/search?q=") ;; If you don't care so much about privacy
-  (setq webkit-ace-chars "aoeuidhtns") ;; More convienent if you use dvorak
-  ;; (setq webkit-history-filename "~/path/to/webkit-history") ;; If you want history saved in a different place
-  ;; (setq webkit-history-filename nil) ;; If you don't want history saved to file (will stay in memory)
-  ;; (setq webkit-own-window t) ;; See above explination; must be set before webkit.el is loaded
-  ;; (setq browse-url-browser-function 'webkit-browse-url) ; Set as the default browse-url browser
-  ;; (setq webkit-browse-url-force-new t) ; Always open a new session instead of reusing a current one
-  :config
-  ;; (add-hook 'webkit-new-hook #'webkit-enable-javascript) ;; disable javascript
-  )
-#+end_src
-
-I personally use evil so I've included ~evil-collection~ bindings which I hope
-to upstream at some point when things stabilize.
-
-#+begin_src emacs-lisp
-(use-package evil-collection-webkit
-  :config
-  (evil-collection-xwidget-setup)
-  )
-#+end_src
-
 Some package managers support custom build steps to automate building. For
 example with the latest [[https://github.com/raxod502/straight.el/][straight.el]] you can use this recipe
 
@@ -145,7 +116,7 @@ example with the latest [[https://github.com/raxod502/straight.el/][straight.el]
 (straight-use-package
  '(webkit :type git :host github :repo "akirakyle/emacs-webkit"
           :branch "main"
-          :files (:defaults "*.js" "*.css")
+          :files (:defaults "Makefile" "*.h" "*.c" "*.js" "*.css")
           :build ("make")))
 #+end_src
 
@@ -153,6 +124,25 @@ I'm a bit hesitant to add lisp code to do this automagically or fetch prebuilt
 modules from the web like ~pdf-tools~ or ~emacs-libvterm~, because I'm a
 believer that it should be the job of a package manager, but perhaps I'll be
 convinced otherwise.
+
+* Setup
+
+First ensure ~emacs-webkit~ is on your ~load-path~.
+
+** Manually
+
+#+begin_src emacs-lisp
+(require 'webkit) 
+(global-set-key (kbd "s-b") 'webkit) ;; Bind to whatever global key binding you want if you want
+#+end_src
+
+** ~use-package~
+
+#+begin_src emacs-lisp
+(use-package webkit
+  :bind ("s-b" 'webkit) ;; Bind to whatever global key binding you want if you want
+  )
+#+end_src
 
 * Usage
 
@@ -165,14 +155,61 @@ convinced otherwise.
 the ~webview~ from Emacs. This means the webview will see all key-presses and
 Emacs will only see the modifier keypresses that are unhandled by the
 webview. This is useful for typing in a text box or using the keyboard shortcuts
-a website might set up. To return focus back to Emacs use ~C-g~. Some features
-such as ~webkit-ace~ have a javascript component that requires moving to insert
-mode. Sometimes javascript is buggy or crashes in which case you may be left
-surprised that Emacs isn't responding to you. ~C-g~ is your friend here, as
-always.
+a website might set up. To return focus back to Emacs use ~C-g~. Some
+~emacs-webkit~ features might have a javascript component that requires moving
+to insert mode. Sometimes javascript is buggy or crashes in which case you may
+be left surprised that Emacs isn't responding to you. ~C-g~ is, as always, your
+friend here.
 
 ~webkit-start-web-inspector~ will start webkit's built in dev tools. Beware that
 the handling of focus can be pretty wonky.
+
+* Customization
+
+#+begin_src emacs-lisp
+;; If you don't care so much about privacy and want to give your data to google
+(setq webkit-search-prefix "https://google.com/search?q=") 
+
+;; Specify a different set of characters use in the link hints
+;; For example the following are more convienent if you use dvorak
+(setq webkit-ace-chars "aoeuidhtns")
+
+;; If you want history saved in a different place or
+;; Set to `nil' to if you don't want history saved to file (will stay in memory)
+(setq webkit-history-filename "~/path/to/webkit-history") 
+
+;; See the above explination in the Background section
+;; This must be set before webkit.el is loaded so certain hooks aren't installed
+(setq webkit-own-window t) 
+
+;; Set webkit as the default browse-url browser
+(setq browse-url-browser-function 'webkit-browse-url)
+
+;; Force webkit to always open a new session instead of reusing a current one
+(setq webkit-browse-url-force-new t)
+
+;; Disable javascript
+(add-hook 'webkit-new-hook #'webkit-enable-javascript)
+
+;; Override the "loading:" mode line indicator with an icon from `all-the-icons.el'
+;; You could also use a unicode icon like ↺
+(defun webkit--display-progress (progress)
+  (setq webkit--progress-formatted
+        (if (equal progress 100.0)
+            ""
+          (format "%s%.0f%%  " (all-the-icons-faicon "spinner") progress)))
+  (force-mode-line-update))
+#+end_src
+
+I personally use evil so I've included ~evil-collection~ bindings which I hope
+to upstream at some point when things stabilize.
+
+#+begin_src emacs-lisp
+(use-package evil-collection-webkit
+  :config
+  (evil-collection-xwidget-setup)
+  )
+#+end_src
 
 * TODO Roadmap (roughly in order of my priorities)
 - Download requests
@@ -180,6 +217,7 @@ the handling of focus can be pretty wonky.
 - Proxy settings
 - Enable webkitgtk process sandboxing
 - Make search incremental
+- Improve insert/focus handling
 - bookmarks.el
 - Dark mode
 - ~completing-read~ link completion/heading jumping
