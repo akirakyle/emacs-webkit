@@ -26,10 +26,13 @@
 ;;; Code:
 
 ;; Don't require dynamic module at byte compile time.
+;; Generate this list with:
+;; awk -F\" '/mkfn*/ {print "(declare-function", $2, "\"webkit-module\")"}' webkit-module.c
 (declare-function webkit--new "webkit-module")
 (declare-function webkit--destroy "webkit-module")
 (declare-function webkit--resize "webkit-module")
 (declare-function webkit--move-to-frame "webkit-module")
+(declare-function webkit--xid-to-pointer "webkit-module")
 (declare-function webkit--hide "webkit-module")
 (declare-function webkit--show "webkit-module")
 (declare-function webkit--focus "webkit-module")
@@ -364,9 +367,17 @@ modeline as a part of `mode-name'"
           ;(message "id: %s; message: %s" id msg)
           (funcall (intern id) msg))))))
 
+(defun webkit--move-to-x-or-pgtk-frame (frame)
+  (let* ((ws (window-system frame))
+         (err-msg "Cannot move webkit view to frame with window-system %S")
+         (win-id (string-to-number (frame-parameter frame 'window-id)))
+         (win-id (cond ((eq ws 'pgtk) win-id)
+                       ((eq ws 'x) (webkit--xid-to-pointer win-id))
+                       (t (error err-msg ws)))))
+    (webkit--move-to-frame webkit--id win-id)))
+
 (defun webkit--adjust-size (frame)
   (ignore frame)
-  ;;(message "adjusting size...")
   (dolist (buffer webkit--buffers)
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
@@ -377,12 +388,8 @@ modeline as a part of `mode-name'"
                                     (selected-window)
                                   (car windows)))
                    (hide-windows (remq show-window windows))
-                   (show-frame (window-frame show-window))
-                   (win-id (frame-parameter show-frame 'window-id))
-                   (win-id (string-to-number win-id)))
-              ;;(when (eq (window-frame show-window) (selected-frame))
-              ;;  (webkit--move-to-focused-frame webkit--id))
-              (webkit--move-to-frame webkit--id win-id)
+                   (show-frame (window-frame show-window)))
+              (webkit--move-to-x-or-pgtk-frame show-frame)
               (pcase-let ((`(,left ,top ,right ,bottom)
                            (window-inside-pixel-edges show-window)))
                 (webkit--show webkit--id)
@@ -392,15 +399,14 @@ modeline as a part of `mode-name'"
                 (switch-to-prev-buffer window)))))))))
 
 (defun webkit--delete-frame (frame)
-  (let* ((new-frame (car (seq-filter
-                          (lambda (elt)
-                            (not (or (eq elt frame)
-                                     (frame-parameter elt 'parent-frame)
-                                     (not (display-graphic-p elt)))))
-                          (frame-list))))
-         (win-id (string-to-number (frame-parameter new-frame 'window-id))))
+  (let ((new-frame (car (seq-filter
+                         (lambda (elt)
+                           (not (or (eq elt frame)
+                                    (frame-parameter elt 'parent-frame)
+                                    (not (display-graphic-p elt)))))
+                         (frame-list)))))
     (seq-map (lambda (buffer) (with-current-buffer buffer
-                                (webkit--move-to-frame webkit--id win-id)))
+                                (webkit--move-to-x-or-pgtk-frame new-frame)))
              webkit--buffers)))
 
 (defun webkit--close (msg)
@@ -476,7 +482,7 @@ the default webkit buffer."
     (webkit-browse-url (eww--dwim-expand-url url) (eq arg 4))))
 
 (define-derived-mode webkit-mode special-mode
-  '("" webkit--progress-formatted (:eval (webkit--format-state)) "WebKit")
+  '("" webkit--progress-formatted "WebKit")
   "webkit view mode."
   (setq buffer-read-only nil))
 

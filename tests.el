@@ -24,6 +24,14 @@
 (setq webkit--id (with-current-buffer (car webkit--buffers) webkit--id))
 (setq webkit--id nil)
 
+(webkit--xid-to-pointer (string-to-number (frame-parameter (selected-frame) 'window-id)))
+(eq 'x (window-system))
+
+(setq my-params (frame-parameters))
+(while my-params
+  (message "%S" (car my-params))
+  (setq my-params (cdr my-params)))
+
 (setq webkit--script (webkit--file-to-string
                          (expand-file-name "script.js" webkit-base)))
 (webkit--execute-js webkit--id
