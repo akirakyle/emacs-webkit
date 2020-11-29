@@ -1,3 +1,4 @@
+;; Not really tests per se, but rather a dump of elisp I've used to test stuff
 (defun fake-module-reload (module)
   (interactive "Reload Module file: ")
   (let ((tmpfile (make-temp-file
@@ -31,6 +32,7 @@
 (while my-params
   (message "%S" (car my-params))
   (setq my-params (cdr my-params)))
+(modify-frame-parameters nil '((inhibit-double-buffering . t)))
 
 (setq webkit--script (webkit--file-to-string
                          (expand-file-name "script.js" webkit-base)))

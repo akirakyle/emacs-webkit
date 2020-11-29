@@ -110,7 +110,7 @@ Make sure you have gcc, pkg-config, gtk3, glib-networking, and of course
 webkitgtk installed. Then just run ~make~ to make ~webkit-module.so~.
 
 Some package managers support custom build steps to automate building. For
-example with the latest [[https://github.com/raxod502/straight.el/][straight.el]] you can use this recipe
+example with the [[https://github.com/raxod502/straight.el/][straight.el]] develop branch you can use this recipe
 
 #+begin_src emacs-lisp
 (straight-use-package
@@ -199,6 +199,14 @@ the handling of focus can be pretty wonky.
             ""
           (format "%s%.0f%%  " (all-the-icons-faicon "spinner") progress)))
   (force-mode-line-update))
+
+;; Set action to be taken on a download request. Predefined actions are
+;; `webkit-download-default', `webkit-download-save', and `webkit-download-open'
+;; where the save function saves to the download directory, the open function
+;; opens in a temp buffer and the default function interactively prompts.
+(setq webkit-download-action-alist '(("\\.pdf\\'" . webkit-download-open)
+                                     ("\\.png\\'" . webkit-download-save)
+                                     (".*" . webkit-download-default))
 #+end_src
 
 I personally use evil so I've included ~evil-collection~ bindings which I hope
@@ -212,7 +220,6 @@ to upstream at some point when things stabilize.
 #+end_src
 
 * TODO Roadmap (roughly in order of my priorities)
-- Download requests
 - Browsing sessions/data and cookie management
 - Proxy settings
 - Enable webkitgtk process sandboxing

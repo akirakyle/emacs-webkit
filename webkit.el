@@ -99,6 +99,14 @@ webkit-new is run in order for embedding to work."
   :group 'webkit
   :type 'boolean)
 
+(defcustom webkit-download-action-alist '((".*" . webkit-download-default))
+  "Alist similar to `auto-mode-alist' that maps filename patterns
+to functions that will handle their download. Elements have the
+form of (REGEXP . FUNCTION) where function takes two arguments:
+the URL of the download and the corresponding NAME of the file."
+  :group 'webkit
+  :type 'alist)
+
 (defvar webkit-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "g" 'webkit)
@@ -343,8 +351,93 @@ modeline as a part of `mode-name'"
 (defun webkit--callback-new-view (uri)
   (webkit-new uri))
 
-(defun webkit--callback-download-request (uri)
-  (message "TODO: implement download request for %s" uri))
+;; https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-11/msg02193.html
+(defun webkit--make-unique-file-name (file directory)
+  (cond
+   ((zerop (length file))
+    (setq file "!"))
+   ((string-match "\\`[.]" file)
+    (setq file (concat "!" file))))
+  (let ((count 1)
+        (stem file)
+        (suffix ""))
+    (when (string-match "\\`\\(.*\\)\\([.][^.]+\\)" file)
+      (setq stem (match-string 1 file)
+            suffix (match-string 2 file)))
+    (while (file-exists-p (expand-file-name file directory))
+      (setq file (format "%s(%d)%s" stem count suffix))
+      (setq count (1+ count)))
+    (expand-file-name file directory)))
+
+(defun webkit-download-save-buffer-safe (dir name)
+  (message "name %S dir %S" name dir)
+  (let ((file (webkit--make-unique-file-name name dir)))
+    (goto-char (point-min))
+    (re-search-forward "\r?\n\r?\n")
+    (let ((coding-system-for-write 'no-conversion))
+      (write-region (point) (point-max) file))
+    (message "Saved %s" file)))
+
+(defun webkit-download-open-as-buffer (name)
+  (rename-buffer name t)
+  (goto-char (point-min))
+  (re-search-forward "\r?\n\r?\n")
+  (delete-region (point-min) (point))
+  (let ((mode (assoc-default name auto-mode-alist 'string-match)))
+    (if mode
+        (funcall mode)
+      (fundamental-mode)))
+  (switch-to-buffer (current-buffer)))
+
+(defun webkit-download-default-callback (status url name)
+  (message "url %S name %S" url name)
+  (if (plist-get status :error)
+      (error "Unable to download %S" url)
+    (if (y-or-n-p "Save to disk? Otherwise download will open in temp buffer")
+        (let ((file (read-file-name "Save as " (erc--download-directory)
+                                    nil nil name)))
+          (webkit-download-save-buffer-safe (file-name-directory file)
+                                            (file-name-nondirectory file)))
+      (webkit-download-open-as-buffer name))))
+
+(defun webkit-download-open-callback (status url name)
+  (if (plist-get status :error)
+      (error "Unable to download %S" url)
+    (webkit-download-open-as-buffer name)))
+
+(defun webkit-download-save-callback (status url name)
+  (if (plist-get status :error)
+      (error "Unable to download %S" url)
+    (webkit-download-save-buffer-safe (erc--download-directory) name)))
+
+(defun webkit-download-default (url name)
+  "Downloads the resource at URL.
+
+Prompts user on whether the download should be opened in a
+temporary buffer or saved. If it is to be saved, prompts user for
+save path starting from user's download directory with suggested
+filename NAME."
+  (url-retrieve url #'webkit-download-default-callback (list url name)))
+
+(defun webkit-download-open (url name)
+  "Downloads the resource at URL.
+
+Opens download in tempoary buffer named NAME."
+  (url-retrieve url #'webkit-download-open-callback (list url name)))
+
+(defun webkit-download-save (url name)
+  "Downloads the resource at URL.
+
+Saves download in user's Downloads directory with filename NAME."
+  (url-retrieve url #'webkit-download-save-callback (list url name)))
+
+(defun webkit--callback-download-request (url)
+  (let* ((obj (url-generic-parse-url url))
+         (path (directory-file-name (car (url-path-and-query obj))))
+         (name (eww-decode-url-file-name (file-name-nondirectory path))))
+    (message "name %S" name)
+    (funcall (assoc-default name webkit-download-action-alist 'string-match)
+             url name)))
 
 (defun webkit-rename-buffer (title)
   (if (string= "" title)
