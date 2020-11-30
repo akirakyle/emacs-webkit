@@ -578,7 +578,6 @@ webkit_unregister_script_message (emacs_env *env, ptrdiff_t n,
   return Qnil;
 }
 
-/*
 static gboolean
 webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
 {
@@ -586,9 +585,11 @@ webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
   switch (e->type) {
   case GDK_KEY_PRESS:
     debug_print ("key.keyval = %d\n", e->key.keyval);
-    if (e->key.keyval == GDK_KEY_Escape && e->key.state == 0)
+    //if (e->key.keyval == GDK_KEY_Escape && e->key.state == 0)
+    if ((e->key.state & GDK_CONTROL_MASK) && (e->key.keyval == 'g'))
       {
-        gtk_widget_grab_focus(GTK_WIDGET(c->container));
+        debug_print ("c %p webview_key_press_event c-g detected\n", c);
+        send_to_lisp (c, "webkit--callback-unfocus", "");
         return TRUE;
       }
   default:
@@ -596,7 +597,6 @@ webview_key_press_event (GtkWidget *w, GdkEvent *e, Client *c)
   }
   return FALSE;
 }
-*/
 
 static void
 webview_load_changed (WebKitWebView  *webview, WebKitLoadEvent load_event,
@@ -1037,8 +1037,8 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   //                  G_CALLBACK(webview_destroy), c);
   g_signal_connect (G_OBJECT (c->view), "close",
                     G_CALLBACK(webview_close), c);
-  //g_signal_connect (G_OBJECT (c->view), "key-press-event",
-  //                  G_CALLBACK (webview_key_press_event), c);
+  g_signal_connect (G_OBJECT (c->view), "key-press-event",
+                    G_CALLBACK (webview_key_press_event), c);
   g_signal_connect (G_OBJECT (c->view), "load-changed",
                     G_CALLBACK (webview_load_changed), c);
   g_signal_connect (G_OBJECT (c->view), "notify::title",

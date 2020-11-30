@@ -545,9 +545,9 @@ Returns the newly created webkit buffer"
        webkit--id "webkit--callback-unfocus")
       (webkit--add-user-script webkit--id webkit--script)
       (webkit--add-user-style webkit--id webkit--style)
-      (when webkit-cookie-filename
+      (when webkit-cookie-file
         (webkit--cookie-set-storage
-         webkit--id (expand-file-name webkit-cookie-filename)))
+         webkit--id (expand-file-name webkit-cookie-file)))
       (run-hooks 'webkit-new-hook)
       (when url (webkit--load-uri webkit--id url))
       (switch-to-buffer buffer))))

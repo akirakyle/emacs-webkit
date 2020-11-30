@@ -1,3 +1,4 @@
+/*
 function WKViewHasFocus() {
   var ae = document.activeElement;
   if (ae) {
@@ -14,6 +15,7 @@ function WKViewKeyDown(event) {
   }
 }
 document.addEventListener('keydown', WKViewKeyDown);
+*/
 
 // Local Variables:
 // js-indent-level: 2

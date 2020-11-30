@@ -162,7 +162,9 @@ be left surprised that Emacs isn't responding to you. ~C-g~ is, as always, your
 friend here.
 
 ~webkit-start-web-inspector~ will start webkit's built in dev tools. Beware that
-the handling of focus can be pretty wonky.
+~c-g~ cannot escape from web inspector's focus but ~C-<tab>~ appears to return
+focus to the webkit view (there doesn't appear to be much ~emac-webkit~ can do
+about this).
 
 * Customization
 
@@ -225,13 +227,12 @@ to upstream at some point when things stabilize.
 
 * TODO Roadmap (roughly in order of my priorities)
 - Proxy settings
-- Improve insert/focus handling
 - Make search incremental
+- Browsing sessions/data and better cookie management
 - Enable webkitgtk process sandboxing
 - bookmarks.el
 - Dark mode
 - ~completing-read~ link completion/heading jumping
 - Web extensions + Ad block
-- Browsing sessions/data and cookie management
 - History ~display-table~ mode
 - Load progress and favicon on mode line
