@@ -30,8 +30,11 @@
 
 (defvar webkit--id)
 
-(defcustom webkit-history-filename (locate-user-emacs-file "webkit-history")
-  "File to store history of `webkit' sessions."
+(defcustom webkit-history-file 
+  (expand-file-name "history" (locate-user-emacs-file "webkit/"))
+  "File to store history of `webkit' sessions.
+Set to `nil' to disable saving history to a file (history will
+still be kept in memory)."
   :type 'file
   :group 'webkit)
 
@@ -88,12 +91,12 @@
                    :last-time (time-convert (current-time) 'integer))))
     (unless (string= (webkit-history-item-uri new-item) "about:blank")
       (webkit-history-add-item new-item)
-      (when webkit-history-filename
+      (when webkit-history-file
         (append-to-file (format "%S\n" (webkit-history-item-serialize new-item))
-                        nil webkit-history-filename)))))
+                        nil webkit-history-file)))))
 
 (defun webkit-history-load ()
-  (with-current-buffer (find-file-noselect webkit-history-filename)
+  (with-current-buffer (find-file-noselect webkit-history-file)
     (goto-char (point-min))
     (condition-case nil
         (while t
@@ -103,10 +106,10 @@
     (kill-buffer)))
 
 (defun webkit-history-initialize ()
-  "Setup required data structure and load history from WEBKIT-HISTORY-FILENAME."
+  "Setup required data structure and load history from WEBKIT-HISTORY-FILE."
   (add-hook 'webkit-load-finished-hook #'webkit-history-add)
   (setq webkit-history-table (make-hash-table :test 'equal))
-  (when webkit-history-filename
+  (when webkit-history-file
     (webkit-history-load))
   nil)
 

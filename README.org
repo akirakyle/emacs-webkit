@@ -176,7 +176,11 @@ the handling of focus can be pretty wonky.
 
 ;; If you want history saved in a different place or
 ;; Set to `nil' to if you don't want history saved to file (will stay in memory)
-(setq webkit-history-filename "~/path/to/webkit-history") 
+(setq webkit-history-file "~/path/to/webkit-history") 
+
+;; If you want cookies saved in a different place or
+;; Set to `nil' to if you don't want cookies saved
+(setq webkit-cookie-file "~/path/to/cookies")
 
 ;; See the above explination in the Background section
 ;; This must be set before webkit.el is loaded so certain hooks aren't installed
@@ -220,14 +224,14 @@ to upstream at some point when things stabilize.
 #+end_src
 
 * TODO Roadmap (roughly in order of my priorities)
-- Browsing sessions/data and cookie management
 - Proxy settings
-- Enable webkitgtk process sandboxing
-- Make search incremental
 - Improve insert/focus handling
+- Make search incremental
+- Enable webkitgtk process sandboxing
 - bookmarks.el
 - Dark mode
 - ~completing-read~ link completion/heading jumping
 - Web extensions + Ad block
+- Browsing sessions/data and cookie management
 - History ~display-table~ mode
 - Load progress and favicon on mode line

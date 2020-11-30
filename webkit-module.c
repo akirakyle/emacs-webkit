@@ -287,6 +287,25 @@ webkit_enable_javascript (emacs_env *env, ptrdiff_t n,
 }
 
 static emacs_value
+webkit_cookie_set_persistent_storage (emacs_env *env, ptrdiff_t n,
+                                      emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  size_t size;
+  char *file = NULL;
+  if ((c != NULL) && copy_string_contents (env, args[1], &file, &size))
+    {
+      WebKitWebContext *context = webkit_web_view_get_context (c->view);
+      WebKitCookieManager *cm = webkit_web_context_get_cookie_manager (context);
+      webkit_cookie_manager_set_persistent_storage
+        (cm, file, WEBKIT_COOKIE_PERSISTENT_STORAGE_TEXT);
+      debug_print ("c %p webkit_cookie_set_persistent_storage %s\n", c, file);
+    }
+  free (file);
+  return Qnil;
+}
+
+static emacs_value
 webkit_resize (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
   Client *c = get_client(env, args[0]);
@@ -1106,6 +1125,7 @@ emacs_module_init (struct emacs_runtime *ert)
   mkfn (env, 1, 1, webkit_search_previous, "webkit--search-previous", "", NULL);
   mkfn (env, 1, 1, webkit_start_web_inspector, "webkit--start-web-inspector", "", NULL);
   mkfn (env, 2, 2, webkit_enable_javascript, "webkit--enable-javascript", "", NULL);
+  mkfn (env, 2, 2, webkit_cookie_set_persistent_storage, "webkit--cookie-set-storage", "", NULL);
   mkfn (env, 2, 3, webkit_execute_js, "webkit--execute-js", "", NULL);
   mkfn (env, 2, 4, webkit_add_user_style, "webkit--add-user-style", "", NULL);
   mkfn (env, 1, 1, webkit_remove_all_user_styles, "webkit--remove-all-user-styles", "", NULL);

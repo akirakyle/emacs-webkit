@@ -51,6 +51,7 @@
 (declare-function webkit--search-previous "webkit-module")
 (declare-function webkit--start-web-inspector "webkit-module")
 (declare-function webkit--enable-javascript "webkit-module")
+(declare-function webkit--cookie-set-storage "webkit-module")
 (declare-function webkit--execute-js "webkit-module")
 (declare-function webkit--add-user-style "webkit-module")
 (declare-function webkit--remove-all-user-styles "webkit-module")
@@ -62,6 +63,8 @@
 (declare-function webkit-history-completing-read prompt "webkit-history")
 
 (defconst webkit--base (file-name-directory load-file-name))
+(defconst webkit--user-dir (locate-user-emacs-file "webkit/"))
+(make-directory webkit--user-dir t)
 
 (defun webkit--file-to-string (filename)
   (with-temp-buffer
@@ -82,30 +85,42 @@
 
 (defcustom webkit-search-prefix "https://duckduckgo.com/html/?q="
   "Prefix URL to search engine."
-  :group 'webkit
-  :type 'string)
+  :type 'string
+  :group 'webkit)
 
 (defcustom webkit-browse-url-force-new nil
   "Whether webkit should use always open a new session instead of
 reusing a current one."
-  :group 'webkit
-  :type 'boolean)
+  :type 'boolean
+  :group 'webkit)
 
 (defcustom webkit-own-window nil
   "Whether webkit should use its own window instead of
 attemptting to embed itself in its buffer. The curretly focused
 frame must be display-graphic-p and either x or pgtk when
 webkit-new is run in order for embedding to work."
-  :group 'webkit
-  :type 'boolean)
+  :type 'boolean
+  :group 'webkit)
 
 (defcustom webkit-download-action-alist '((".*" . webkit-download-default))
   "Alist similar to `auto-mode-alist' that maps filename patterns
 to functions that will handle their download. Elements have the
 form of (REGEXP . FUNCTION) where function takes two arguments:
 the URL of the download and the corresponding NAME of the file."
-  :group 'webkit
-  :type 'alist)
+  :type 'alist
+  :group 'webkit)
+
+(defcustom webkit-configuration-directory
+  (locate-user-emacs-file "url/" ".url/")
+  "Directory used by the URL package for cookies, history, etc."
+  :type 'directory
+  :group 'url)
+
+(defcustom webkit-cookie-file (expand-file-name "cookies" webkit--user-dir)
+  "File to store cookies of `webkit' sessions.
+Set to `nil' to disable saving cookies to a file."
+  :type 'file
+  :group 'webkit)
 
 (defvar webkit-mode-map
   (let ((map (make-sparse-keymap)))
@@ -370,7 +385,6 @@ modeline as a part of `mode-name'"
     (expand-file-name file directory)))
 
 (defun webkit-download-save-buffer-safe (dir name)
-  (message "name %S dir %S" name dir)
   (let ((file (webkit--make-unique-file-name name dir)))
     (goto-char (point-min))
     (re-search-forward "\r?\n\r?\n")
@@ -390,7 +404,6 @@ modeline as a part of `mode-name'"
   (switch-to-buffer (current-buffer)))
 
 (defun webkit-download-default-callback (status url name)
-  (message "url %S name %S" url name)
   (if (plist-get status :error)
       (error "Unable to download %S" url)
     (if (y-or-n-p "Save to disk? Otherwise download will open in temp buffer")
@@ -435,7 +448,6 @@ Saves download in user's Downloads directory with filename NAME."
   (let* ((obj (url-generic-parse-url url))
          (path (directory-file-name (car (url-path-and-query obj))))
          (name (eww-decode-url-file-name (file-name-nondirectory path))))
-    (message "name %S" name)
     (funcall (assoc-default name webkit-download-action-alist 'string-match)
              url name)))
 
@@ -533,6 +545,9 @@ Returns the newly created webkit buffer"
        webkit--id "webkit--callback-unfocus")
       (webkit--add-user-script webkit--id webkit--script)
       (webkit--add-user-style webkit--id webkit--style)
+      (when webkit-cookie-filename
+        (webkit--cookie-set-storage
+         webkit--id (expand-file-name webkit-cookie-filename)))
       (run-hooks 'webkit-new-hook)
       (when url (webkit--load-uri webkit--id url))
       (switch-to-buffer buffer))))
@@ -582,6 +597,9 @@ the default webkit buffer."
 (unless (require 'webkit-module nil t)
   (error "webkit needs `webkit-module' to be compiled!"))
 
+(when (version< emacs-version "28.0")
+  (error "webkit requires an Emacs version > 28"))
+
 ;;(defun webkit-setup ()
 ;;  "Setup various hooks necessary for webkit to work.
 ;;`webkit-own-window' must be set to desired value before this is called."
@@ -600,9 +618,6 @@ the default webkit buffer."
 (add-hook 'webkit-title-changed-functions 'webkit-rename-buffer)
 (add-hook 'webkit-progress-changed-functions 'webkit--display-progress)
 (add-hook 'kill-buffer-hook #'webkit--kill-buffer)
-
-(when (version< emacs-version "28.0")
-  (error "webkit requires an Emacs version > 28"))
 
 (provide 'webkit)
 ;;; webkit.el ends here
