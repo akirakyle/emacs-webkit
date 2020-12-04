@@ -75,7 +75,7 @@ document.addEventListener('keydown', WKViewEvilKeyDown);
     "=" 'webkit-zoom-in
     "-" 'webkit-zoom-out
     "f" 'webkit-ace
-    "/" 'webkit-search
+    "/" 'webkit-isearch
     "n" 'webkit-search-next
     "N" 'webkit-search-previous
     "ESC" 'webkit-search-finish

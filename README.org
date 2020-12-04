@@ -229,14 +229,14 @@ to upstream at some point when things stabilize.
 #+end_src
 
 * TODO Roadmap (roughly in order of my priorities)
-- Make search incremental
-- Browsing sessions/data and better cookie management
 - Enable webkitgtk process sandboxing
-- bookmarks.el
 - Dark mode
+- bookmarks.el
+- Ad block
 - Edit text areas in temp emacs buffer
-- Web extensions + Ad block
+- Browsing sessions/data and better cookie management
 - Pass integration
+- Web extensions?
 - ~completing-read~ link completion/heading jumping
 - History ~display-table~ mode
 - favicon on mode line

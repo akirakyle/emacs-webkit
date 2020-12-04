@@ -136,7 +136,7 @@ Set to `nil' to disable saving cookies to a file."
     (define-key map (kbd "C-y") 'webkit-copy-selection)
     (define-key map (kbd "C-l") 'webkit-copy-url)
 
-    (define-key map (kbd "C-s C-s") 'webkit-search)
+    (define-key map (kbd "C-s C-s") 'webkit-isearch)
     (define-key map (kbd "C-s s") 'webkit-search-next)
     (define-key map (kbd "C-s r") 'webkit-search-previous)
     (define-key map (kbd "C-s c") 'webkit-search-finish)
@@ -293,6 +293,28 @@ If N is omitted or nil, scroll backwards by one char."
   "Reload current URL."
   (interactive)
   (webkit--reload (or webkit-id webkit--id)))
+
+(defun webkit--search-cleanup ()
+  (remove-hook 'post-command-hook #'webkit--search-update)
+  (remove-hook 'minibuffer-exit-hook #'webkit--search-cleanup)
+  (setq webkit--current-isearch-id nil))
+
+(defun webkit--search-update ()
+  (let* ((str (minibuffer-contents))
+         (case-fold-search nil)
+         (case (string-match-p "[[:upper:]]" str)))
+    (webkit--search webkit--current-isearch-id str case)))
+
+(defun webkit-isearch ()
+  "Interactive incremental search current webkit buffer.
+Seach becomes case sensitive if query has any uppercase characters."
+  (interactive)
+  (setq webkit--current-isearch-id webkit--id)
+  (minibuffer-with-setup-hook
+      (lambda ()
+        (add-hook 'post-command-hook #'webkit--search-update)
+        (add-hook 'minibuffer-exit-hook #'webkit--search-cleanup))
+    (read-string "Find: ")))
 
 (defun webkit-search (query &optional case webkit-id)
   "Search in webkit for QUERY.
