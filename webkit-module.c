@@ -306,6 +306,41 @@ webkit_cookie_set_persistent_storage (emacs_env *env, ptrdiff_t n,
 }
 
 static emacs_value
+webkit_proxy_set_uri (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  size_t size;
+  char *proxy_uri = NULL;
+  if ((c != NULL) && copy_string_contents (env, args[1], &proxy_uri, &size))
+    {
+      WebKitWebContext *context = webkit_web_view_get_context (c->view);
+      WebKitNetworkProxySettings *proxy = webkit_network_proxy_settings_new
+        (proxy_uri, NULL);
+      webkit_web_context_set_network_proxy_settings
+        (context, WEBKIT_NETWORK_PROXY_MODE_CUSTOM, proxy);
+      webkit_network_proxy_settings_free (proxy);
+      debug_print ("c %p webkit_proxy_set_uri %s\n", c, proxy_uri);
+    }
+  free (proxy_uri);
+  return Qnil;
+}
+
+static emacs_value
+webkit_proxy_set_default (emacs_env *env, ptrdiff_t n,
+                          emacs_value *args, void *ptr)
+{
+  Client *c = get_client (env, args[0]);
+  if ((c != NULL))
+    {
+      WebKitWebContext *context = webkit_web_view_get_context (c->view);
+      webkit_web_context_set_network_proxy_settings
+        (context, WEBKIT_NETWORK_PROXY_MODE_DEFAULT, NULL);
+      debug_print ("c %p webkit_proxy_set_default\n", c);
+    }
+  return Qnil;
+}
+
+static emacs_value
 webkit_resize (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 {
   Client *c = get_client(env, args[0]);
@@ -1126,6 +1161,8 @@ emacs_module_init (struct emacs_runtime *ert)
   mkfn (env, 1, 1, webkit_start_web_inspector, "webkit--start-web-inspector", "", NULL);
   mkfn (env, 2, 2, webkit_enable_javascript, "webkit--enable-javascript", "", NULL);
   mkfn (env, 2, 2, webkit_cookie_set_persistent_storage, "webkit--cookie-set-storage", "", NULL);
+  mkfn (env, 2, 2, webkit_proxy_set_uri, "webkit--proxy-set-uri", "", NULL);
+  mkfn (env, 1, 1, webkit_proxy_set_default, "webkit--proxy-set-default", "", NULL);
   mkfn (env, 2, 3, webkit_execute_js, "webkit--execute-js", "", NULL);
   mkfn (env, 2, 4, webkit_add_user_style, "webkit--add-user-style", "", NULL);
   mkfn (env, 1, 1, webkit_remove_all_user_styles, "webkit--remove-all-user-styles", "", NULL);

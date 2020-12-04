@@ -162,7 +162,7 @@ be left surprised that Emacs isn't responding to you. ~C-g~ is, as always, your
 friend here.
 
 ~webkit-start-web-inspector~ will start webkit's built in dev tools. Beware that
-~c-g~ cannot escape from web inspector's focus but ~C-<tab>~ appears to return
+~C-g~ cannot escape from web inspector's focus but ~C-<tab>~ appears to return
 focus to the webkit view (there doesn't appear to be much ~emac-webkit~ can do
 about this).
 
@@ -194,7 +194,7 @@ about this).
 ;; Force webkit to always open a new session instead of reusing a current one
 (setq webkit-browse-url-force-new t)
 
-;; Disable javascript
+;; Globally disable javascript
 (add-hook 'webkit-new-hook #'webkit-enable-javascript)
 
 ;; Override the "loading:" mode line indicator with an icon from `all-the-icons.el'
@@ -213,6 +213,9 @@ about this).
 (setq webkit-download-action-alist '(("\\.pdf\\'" . webkit-download-open)
                                      ("\\.png\\'" . webkit-download-save)
                                      (".*" . webkit-download-default))
+
+;; Globally use a proxy
+(add-hook 'webkit-new-hook (lambda () (webkit-set-proxy "socks://localhost:8000")))
 #+end_src
 
 I personally use evil so I've included ~evil-collection~ bindings which I hope
@@ -226,13 +229,14 @@ to upstream at some point when things stabilize.
 #+end_src
 
 * TODO Roadmap (roughly in order of my priorities)
-- Proxy settings
 - Make search incremental
 - Browsing sessions/data and better cookie management
 - Enable webkitgtk process sandboxing
 - bookmarks.el
 - Dark mode
-- ~completing-read~ link completion/heading jumping
+- Edit text areas in temp emacs buffer
 - Web extensions + Ad block
+- Pass integration
+- ~completing-read~ link completion/heading jumping
 - History ~display-table~ mode
-- Load progress and favicon on mode line
+- favicon on mode line

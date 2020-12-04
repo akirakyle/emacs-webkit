@@ -52,6 +52,8 @@
 (declare-function webkit--start-web-inspector "webkit-module")
 (declare-function webkit--enable-javascript "webkit-module")
 (declare-function webkit--cookie-set-storage "webkit-module")
+(declare-function webkit--proxy-set-uri "webkit-module")
+(declare-function webkit--proxy-set-default "webkit-module")
 (declare-function webkit--execute-js "webkit-module")
 (declare-function webkit--add-user-style "webkit-module")
 (declare-function webkit--remove-all-user-styles "webkit-module")
@@ -323,6 +325,14 @@ Seach is case sensitive if CASE is not nil."
 disable it otherwise."
   (interactive "P")
   (webkit--enable-javascript (or webkit-id webkit--id) enable))
+
+(defun webkit-set-proxy (uri &optional webkit-id)
+  "Enable external javascript execution if ENABLE is not nil and
+disable it otherwise."
+  (interactive (list (read-string "Proxy URI (blank to reset): ")))
+  (if (string= uri "")
+      (webkit--proxy-set-default webkit--id)
+    (webkit--proxy-set-uri (or webkit-id webkit--id) uri)))
 
 (defun webkit-insert-mode (&optional webkit-id)
   (interactive)

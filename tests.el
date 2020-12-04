@@ -52,6 +52,9 @@
                     "window.webkit.messageHandlers[\"webkit--callback-key-down\"].postMessage(\"hi\")"
                     "message")
 
+(webkit--proxy-set-uri webkit--id "socks://localhost:8000")
+(webkit--proxy-set-default webkit--id)
+
 (setq webkit--to-json-js "
 function toJSON(node) {
   let propFix = { for: 'htmlFor', class: 'className' };
