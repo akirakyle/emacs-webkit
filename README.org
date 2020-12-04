@@ -229,7 +229,6 @@ to upstream at some point when things stabilize.
 #+end_src
 
 * TODO Roadmap (roughly in order of my priorities)
-- Enable webkitgtk process sandboxing
 - Dark mode
 - bookmarks.el
 - Ad block
@@ -237,6 +236,7 @@ to upstream at some point when things stabilize.
 - Browsing sessions/data and better cookie management
 - Pass integration
 - Web extensions?
+- Echo url on mouse hover
 - ~completing-read~ link completion/heading jumping
 - History ~display-table~ mode
 - favicon on mode line

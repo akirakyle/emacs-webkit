@@ -1029,6 +1029,10 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   if (env->non_local_exit_check(env) != emacs_funcall_exit_return)
     return Qnil;
 
+  WebKitWebContext *webkit_default_context = webkit_web_context_get_default ();
+  if (!webkit_web_context_get_sandbox_enabled (webkit_default_context))
+    webkit_web_context_set_sandbox_enabled (webkit_default_context, true);
+
   c->view = WEBKIT_WEB_VIEW (webkit_web_view_new ());
   /* set lifetime of c->view to be same as c which is owend by Emacs user_ptr */
   g_object_ref (c->view); 
@@ -1089,14 +1093,14 @@ webkit_new (emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
   g_signal_connect (webkit_web_view_get_find_controller (c->view),
                     "counted-matches",
                     G_CALLBACK(findcontroller_counted_matches), c);
-  
+
 #ifdef DEBUG
   webkit_settings_set_enable_write_console_messages_to_stdout
     (webkit_web_view_get_settings (c->view), true);
 #endif
   // https://bugs.webkit.org/show_bug.cgi?id=200856
-  webkit_settings_set_hardware_acceleration_policy
-    (webkit_web_view_get_settings (c->view), WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
+  //webkit_settings_set_hardware_acceleration_policy
+  //  (webkit_web_view_get_settings (c->view), WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
   /* webkit uses GSubprocess which sets sigaction causing emacs to not catch
      SIGCHLD with it's usual handle setup in catch_child_signal().
      This resets the SIGCHLD sigaction */
