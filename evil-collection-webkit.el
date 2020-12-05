@@ -87,7 +87,8 @@ document.addEventListener('keydown', WKViewEvilKeyDown);
     "gg" 'webkit-scroll-top
     "G" 'webkit-scroll-bottom
     "y" 'webkit-copy-selection
-    "Y" 'webkit-copy-url)
+    "Y" 'webkit-copy-url
+    "zd" 'webkit-dark-toggle)
 
   (when evil-want-C-d-scroll
     (evil-collection-define-key 'normal 'webkit-mode-map

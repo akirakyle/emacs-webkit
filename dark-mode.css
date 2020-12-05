@@ -1,0 +1,41 @@
+*,div,pre,textarea,body,input,td,tr,p {
+    background-color: #292b2e !important;
+    /*background-image: none !important;*/
+    color: #b2b2b2 !important;
+}
+h1,h2,h3,h4 {
+    background-color: #303030 !important;
+    color: #b8ddea !important;
+}
+a {
+    color: #2aa1ae !important;
+}
+a:hover,a:focus {
+    color: #7070e0 !important;
+}
+a:visited {
+    color: #4f97d7 !important;
+}
+
+/* for wikipedia's equations */
+img.mwe-math-fallback-image-inline {
+    filter: invert(100%) !important;
+    background-color: transparent !important;
+}
+
+*[webkitviewhint^='hint']
+{
+    all: initial !important;
+    z-index: 2147483647;
+    position:fixed !important;
+    opacity: 0.7;
+    border: 1px solid #2d2d2d !important;
+    color: #2d2d2d !important;
+    background-color: #f2f0ec !important;
+    font: bold 20px monospace;
+    margin: 0;
+    padding: 0px 1px;
+}
+::selection {
+    background: red;
+}

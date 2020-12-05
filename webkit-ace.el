@@ -27,22 +27,20 @@
 
 (require 'webkit)
 
+(declare-function webkit-add-style "webkit")
+(declare-function webkit-add-script "webkit")
 (declare-function webkit--file-to-string "webkit")
 (declare-function webkit--execute-js "webkit-module")
 (declare-function webkit--focus "webkit-module")
-(declare-function webkit--add-user-script "webkit-module")
-(declare-function webkit--add-user-style "webkit-module")
 
 (defconst webkit--base (file-name-directory load-file-name))
 
 (defvar webkit--id)
 
-(defvar webkit--hints-script
-      (webkit--file-to-string
-       (expand-file-name "hints.js" webkit--base)))
-(defvar webkit--hints-style
-      (webkit--file-to-string
-       (expand-file-name "hints.css" webkit--base)))
+(defvar webkit--hints-script (webkit--file-to-string
+                              (expand-file-name "hints.js" webkit--base)))
+(defvar webkit--hints-style (webkit--file-to-string
+                             (expand-file-name "hints.css" webkit--base)))
 
 (defcustom webkit-ace-chars "asdfghjklweio"
   "Link hint characters."
@@ -66,9 +64,8 @@
    "webkit-ace--callback"))
 
 (defun webkit-ace-init ()
-  (webkit--add-user-script webkit--id webkit--hints-script)
-  (webkit--add-user-style webkit--id webkit--hints-style)
-  )
+  (webkit-add-style webkit--hints-style)
+  (webkit-add-script webkit--hints-script))
 
 (add-hook 'webkit-new-hook #'webkit-ace-init)
 (define-key webkit-mode-map "o" 'webkit-ace)

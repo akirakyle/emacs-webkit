@@ -216,6 +216,9 @@ about this).
 
 ;; Globally use a proxy
 (add-hook 'webkit-new-hook (lambda () (webkit-set-proxy "socks://localhost:8000")))
+
+;; Globally use the simple dark mode
+(setq webkit-dark-mode t)
 #+end_src
 
 I personally use evil so I've included ~evil-collection~ bindings which I hope
@@ -229,7 +232,6 @@ to upstream at some point when things stabilize.
 #+end_src
 
 * TODO Roadmap (roughly in order of my priorities)
-- Dark mode
 - bookmarks.el
 - Ad block
 - Edit text areas in temp emacs buffer

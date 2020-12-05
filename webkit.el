@@ -64,7 +64,6 @@
 
 (declare-function webkit-history-completing-read prompt "webkit-history")
 
-(defconst webkit--base (file-name-directory load-file-name))
 (defconst webkit--user-dir (locate-user-emacs-file "webkit/"))
 (make-directory webkit--user-dir t)
 
@@ -78,8 +77,8 @@
 
 (defvar webkit--id)
 (defvar webkit--buffers)
-(defvar webkit--script)
-(defvar webkit--style)
+(defvar webkit--scripts)
+(defvar webkit--styles)
 
 (defgroup webkit nil
   "The dynamic module webkit browser."
@@ -341,6 +340,40 @@ Seach is case sensitive if CASE is not nil."
   "Start webkit's webk inspector."
   (interactive)
   (webkit--start-web-inspector (or webkit-id webkit--id)))
+
+(defun webkit-set-styles (styles webkit-id)
+  "Add all the strings of css scripts in the list STYLES to
+WEBKIT-ID while removing any previous styles."
+  (webkit--remove-all-user-styles webkit-id)
+  (dolist (style styles)
+    (webkit--add-user-style webkit-id style)))
+
+(defun webkit-set-scripts (scripts webkit-id)
+  "Add all the strings of js scripts in the list SCRIPTS to
+WEBKIT-ID while removing any previous scripts."
+  (webkit--remove-all-user-scripts webkit-id)
+  (dolist (script scripts)
+    (webkit--add-user-script webkit-id script)))
+
+(defun webkit-add-style (style &optional webkit-id)
+  "Add user css STYLE to webkit view."
+  (push style webkit--styles)
+  (webkit-set-styles webkit--styles (or webkit-id webkit--id)))
+
+(defun webkit-add-script (script &optional webkit-id)
+  "Add user js SCRIPT to webkit view."
+  (push script webkit--scripts)
+  (webkit-set-scripts webkit--scripts (or webkit-id webkit--id)))
+
+(defun webkit-remove-style (style &optional webkit-id)
+  "Remove user css STYLE frome webkit view."
+  (setq webkit--styles (delq style webkit--styles))
+  (webkit-set-styles webkit--styles (or webkit-id webkit--id)))
+
+(defun webkit-remove-script (script &optional webkit-id)
+  "Remove user js SCRIPT frome webkit view."
+  (setq webkit--scripts (delq script webkit--scripts))
+  (webkit-set-scripts webkit--scripts (or webkit-id webkit--id)))
 
 (defun webkit-enable-javascript (&optional enable webkit-id)
   "Enable external javascript execution if ENABLE is not nil and
@@ -637,12 +670,10 @@ the default webkit buffer."
 ;;`webkit-own-window' must be set to desired value before this is called."
 
 (make-variable-buffer-local 'webkit--id)
+(make-variable-buffer-local 'webkit--scripts)
+(make-variable-buffer-local 'webkit--styles)
 (setq webkit--buffers nil)
 
-(setq webkit--script (webkit--file-to-string
-                    (expand-file-name "script.js" webkit--base)))
-(setq webkit--style (webkit--file-to-string
-                    (expand-file-name "style.css" webkit--base)))
 (unless webkit-own-window
 (add-hook 'window-size-change-functions #'webkit--adjust-size)
 (add-hook 'delete-frame-functions #'webkit--delete-frame))
