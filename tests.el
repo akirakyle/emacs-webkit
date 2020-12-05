@@ -24,6 +24,7 @@
 (with-current-buffer (car webkit--buffers) (buffer-string))
 (setq webkit--id (with-current-buffer (car webkit--buffers) webkit--id))
 (setq webkit--id nil)
+(with-current-buffer (car webkit--buffers) webkit--styles)
 
 (webkit--xid-to-pointer (string-to-number (frame-parameter (selected-frame) 'window-id)))
 (eq 'x (window-system))
