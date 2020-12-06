@@ -153,7 +153,7 @@ First ensure ~emacs-webkit~ is on your ~load-path~.
 - Enter url or keywords to search
 - ~C-h m~ (~describe-mode~) to see keybindings.
 - Feel the power (and weight) of a browser running inside Emacs.
-- Emacs' builtin bookmarks are supported!
+- Emacs' builtin bookmarks and ~org-store-link~ are supported!
 
 ~emacs-webkit~ has a concept of an "insert" mode, which moves keyboard focus to
 the ~webview~ from Emacs. This means the webview will see all key-presses and

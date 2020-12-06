@@ -529,6 +529,16 @@ Saves download in user's Downloads directory with filename NAME."
     (filename . ,(webkit--get-uri webkit--id))
     (handler . webkit--bookmark-handler)))
 
+(org-link-set-parameters "webkit" :store #'webkit-org-store-link)
+
+(defun webkit-org-store-link ()
+  "Store a link to the url of an EWW buffer."
+  (when (eq major-mode 'webkit-mode)
+    (org-link-store-props
+     :type "http"
+     :link (webkit--get-uri webkit--id)
+     :description (buffer-name))))
+
 (defun webkit-rename-buffer (title)
   (if (string= "" title)
       (let ((uri (webkit--get-uri webkit--id)))
