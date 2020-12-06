@@ -64,7 +64,10 @@
 
 (declare-function webkit-history-completing-read prompt "webkit-history")
 
+(declare-function bookmark-default-handler "bookmark" (bmk))
 (declare-function bookmark-prop-get "bookmark" (bookmark prop))
+(declare-function org-link-set-parameters "ol" (type &rest rest))
+(declare-function org-link-store-props "ol" (&rest plist))
 
 (defconst webkit--user-dir (locate-user-emacs-file "webkit/"))
 (make-directory webkit--user-dir t)
@@ -93,8 +96,9 @@
   :group 'webkit)
 
 (defcustom webkit-browse-url-force-new nil
-  "Whether webkit should use always open a new session instead of
-reusing a current one."
+  "Whether webkit should always open a new session instead of
+reusing a current one. Note this reverse that action of a prefix
+argument so C-u M-x `webkit' will open in the current session."
   :type 'boolean
   :group 'webkit)
 
@@ -384,9 +388,15 @@ disable it otherwise."
   (interactive "P")
   (webkit--enable-javascript (or webkit-id webkit--id) enable))
 
+(defun webkit-set-cookie-file (file &optional webkit-id)
+  "Set persistent cookie storage location to FILE."
+  (interactive (list (read-file-name "Cookie file: " webkit--user-dir)))
+  (webkit--cookie-set-storage (or webkit-id webkit--id)
+                              (expand-file-name file)))
+
 (defun webkit-set-proxy (uri &optional webkit-id)
-  "Enable external javascript execution if ENABLE is not nil and
-disable it otherwise."
+  "Set proxy to URI or reset to default if URI is the empty string.
+See webkit documentation for supported proxy uri types."
   (interactive (list (read-string "Proxy URI (blank to reset): ")))
   (if (string= uri "")
       (webkit--proxy-set-default webkit--id)
@@ -629,9 +639,7 @@ Returns the newly created webkit buffer"
                            webkit-own-window))
       (push buffer webkit--buffers)
       (webkit--register-script-message webkit--id "webkit--callback-unfocus")
-      (when webkit-cookie-file
-        (webkit--cookie-set-storage
-         webkit--id (expand-file-name webkit-cookie-file)))
+      (when webkit-cookie-file (webkit-set-cookie-file webkit-cookie-file))
       (run-hooks 'webkit-new-hook)
       (when url (webkit--load-uri webkit--id url))
       (switch-to-buffer buffer))))
@@ -643,7 +651,8 @@ Returns the newly created webkit buffer"
 NEW-SESSION specifies whether to create a new webkit session or use the 
 current session."
   (interactive (browse-url-interactive-arg "URL: "))
-  (if (or new-session (not webkit--buffers) webkit-browse-url-force-new)
+  (if webkit-browse-url-force-new (setq new-session (not new-session)))
+  (if (or new-session (not webkit--buffers))
       (webkit-new url)
     (let* ((id (or webkit--id (with-current-buffer (car webkit--buffers)
                                webkit--id)))
@@ -701,8 +710,8 @@ the default webkit buffer."
 (add-hook 'window-size-change-functions #'webkit--adjust-size)
 (add-hook 'delete-frame-functions #'webkit--delete-frame))
 
-(add-hook 'webkit-title-changed-functions 'webkit-rename-buffer)
-(add-hook 'webkit-progress-changed-functions 'webkit--display-progress)
+(add-hook 'webkit-title-changed-functions #'webkit-rename-buffer)
+(add-hook 'webkit-progress-changed-functions #'webkit--display-progress)
 
 (provide 'webkit)
 ;;; webkit.el ends here
