@@ -153,6 +153,7 @@ First ensure ~emacs-webkit~ is on your ~load-path~.
 - Enter url or keywords to search
 - ~C-h m~ (~describe-mode~) to see keybindings.
 - Feel the power (and weight) of a browser running inside Emacs.
+- Emacs' builtin bookmarks are supported!
 
 ~emacs-webkit~ has a concept of an "insert" mode, which moves keyboard focus to
 the ~webview~ from Emacs. This means the webview will see all key-presses and
@@ -230,16 +231,15 @@ to upstream at some point when things stabilize.
 #+begin_src emacs-lisp
 (use-package evil-collection-webkit
   :config
-  (evil-collection-xwidget-setup)
-  )
+  (evil-collection-xwidget-setup))
 #+end_src
 
 * TODO Roadmap (roughly in order of my priorities)
-- bookmarks.el
 - Ad block
 - Edit text areas in temp emacs buffer
-- Browsing sessions/data and better cookie management
 - Pass integration
+- XEmbed when using emacs ~--with-x~
+- Browsing sessions/data and better cookie management
 - Web extensions?
 - Echo url on mouse hover
 - ~completing-read~ link completion/heading jumping

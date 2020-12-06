@@ -64,6 +64,8 @@
 
 (declare-function webkit-history-completing-read prompt "webkit-history")
 
+(declare-function bookmark-prop-get "bookmark" (bookmark prop))
+
 (defconst webkit--user-dir (locate-user-emacs-file "webkit/"))
 (make-directory webkit--user-dir t)
 
@@ -517,6 +519,16 @@ Saves download in user's Downloads directory with filename NAME."
     (funcall (assoc-default name webkit-download-action-alist 'string-match)
              url name)))
 
+(defun webkit--bookmark-handler (bmk-record)
+  (let* ((file (bookmark-prop-get bmk-record 'filename))
+         (buf (webkit-browse-url file t)))
+    (bookmark-default-handler `("" (buffer . ,buf)))))
+
+(defun webkit--bookmark-make-record ()
+  `(,(buffer-name)
+    (filename . ,(webkit--get-uri webkit--id))
+    (handler . webkit--bookmark-handler)))
+
 (defun webkit-rename-buffer (title)
   (if (string= "" title)
       (let ((uri (webkit--get-uri webkit--id)))
@@ -586,10 +598,9 @@ Saves download in user's Downloads directory with filename NAME."
   (kill-this-buffer))
 
 (defun webkit--kill-buffer ()
-  (when (eq major-mode 'webkit-mode)
-    (webkit--hide webkit--id)
-    (webkit--destroy webkit--id)
-    (setq webkit--buffers (delq (current-buffer) webkit--buffers))))
+  (webkit--hide webkit--id)
+  (webkit--destroy webkit--id)
+  (setq webkit--buffers (delq (current-buffer) webkit--buffers)))
 
 (defun webkit-new (&optional url buffer-name noquery)
   "Create a new webkit with URL
@@ -654,7 +665,12 @@ the default webkit buffer."
 (define-derived-mode webkit-mode special-mode
   '("" webkit--progress-formatted "WebKit")
   "webkit view mode."
-  (setq buffer-read-only nil))
+  (setq buffer-read-only nil)
+  (setq-local cursor-type nil)
+
+  (setq-local bookmark-make-record-function #'webkit--bookmark-make-record)
+
+  (add-hook 'kill-buffer-hook #'webkit--kill-buffer nil t))
 
 (unless (require 'webkit-module nil t)
   (error "webkit needs `webkit-module' to be compiled!"))
@@ -677,7 +693,6 @@ the default webkit buffer."
 
 (add-hook 'webkit-title-changed-functions 'webkit-rename-buffer)
 (add-hook 'webkit-progress-changed-functions 'webkit--display-progress)
-(add-hook 'kill-buffer-hook #'webkit--kill-buffer)
 
 (provide 'webkit)
 ;;; webkit.el ends here
