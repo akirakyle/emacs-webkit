@@ -116,7 +116,7 @@ example with the [[https://github.com/raxod502/straight.el/][straight.el]] devel
 (straight-use-package
  '(webkit :type git :host github :repo "akirakyle/emacs-webkit"
           :branch "main"
-          :files (:defaults "Makefile" "*.h" "*.c" "*.js" "*.css")
+          :files (:defaults "*.js" "*.css" "*.so")
           :build ("make")))
 #+end_src
 
@@ -134,14 +134,17 @@ First ensure ~emacs-webkit~ is on your ~load-path~.
 #+begin_src emacs-lisp
 (require 'webkit) 
 (global-set-key (kbd "s-b") 'webkit) ;; Bind to whatever global key binding you want if you want
+(require 'webkit-ace) ;; If you want link hinting
+(require 'webkit-dark) ;; If you want to use the simple dark mode
 #+end_src
 
 ** ~use-package~
 
 #+begin_src emacs-lisp
 (use-package webkit
-  :bind ("s-b" 'webkit) ;; Bind to whatever global key binding you want if you want
-  )
+  :bind ("s-b" 'webkit)) ;; Bind to whatever global key binding you want if you want
+(use-package 'webkit-ace) ;; If you want link hinting
+(use-package 'webkit-dark) ;; If you want to use the simple dark mode
 #+end_src
 
 * Usage

@@ -1,13 +1,13 @@
 *[webkitviewhint^='hint']
 {
-    all: initial !important;
+    all: initial;
     z-index: 2147483647;
-    position:fixed !important;
+    position: fixed !important;
     opacity: 0.7;
     border:1px solid #444;
     color: red;
     background-color: yellow;
-    font: bold 20px monospace;
+    font: bold 20px monospace !important;
     margin: 0;
     padding: 0px 1px;
 }

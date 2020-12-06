@@ -479,7 +479,7 @@ webkit_add_user_style (emacs_env *env, ptrdiff_t n,
       webkit_user_content_manager_add_style_sheet (ucm, user_style);
       webkit_user_style_sheet_unref (user_style);
     }
-  //debug_print ("c %p add_user_style: %s\n", c, style);
+  debug_print ("c %p add_user_style: %s\n", c, style);
   free (style);
   return Qnil;
 }
@@ -495,7 +495,7 @@ webkit_remove_all_user_styles (emacs_env *env, ptrdiff_t n,
         webkit_web_view_get_user_content_manager (c->view);
       webkit_user_content_manager_remove_all_style_sheets (ucm);
     }
-  debug_print ("c %p webkit_remove_all_user_styles", c);
+  debug_print ("c %p webkit_remove_all_user_styles\n", c);
   return Qnil;
 }
 static emacs_value
@@ -521,7 +521,7 @@ webkit_add_user_script (emacs_env *env, ptrdiff_t n,
       webkit_user_content_manager_add_script (ucm, user_script);
       webkit_user_script_unref (user_script);
     }
-  //debug_print ("c %p add_user_script: %s\n", c, script);
+  debug_print ("c %p add_user_script: %s\n", c, script);
   free (script);
   return Qnil;
 }
@@ -537,7 +537,7 @@ webkit_remove_all_user_scripts (emacs_env *env, ptrdiff_t n,
         webkit_web_view_get_user_content_manager (c->view);
       webkit_user_content_manager_remove_all_scripts (ucm);
     }
-  debug_print ("c %p webkit_remove_all_user_scripts", c);
+  debug_print ("c %p webkit_remove_all_user_scripts\n", c);
   return Qnil;
 }
 

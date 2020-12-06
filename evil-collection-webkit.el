@@ -33,13 +33,13 @@
 
 (defun webkit-scroll-up-half (&optional webkit-id)
   (interactive)
-  (webkit-scroll-by-percent 0.5))
+  (webkit-scroll-by-percent 0.5 webkit-id))
 
 (defun webkit-scroll-down-half (&optional webkit-id)
   (interactive)
-  (webkit-scroll-by-percent -0.5))
+  (webkit-scroll-by-percent -0.5 webkit-id))
 
-(setq webkit--evil-escape-script "
+(defvar webkit--evil-escape-script "
 function WKViewEvilKeyDown(event) {
   console.log('WKViewKeyDown: '+event.key);
   if (event.key == 'Escape') {
@@ -50,12 +50,13 @@ document.addEventListener('keydown', WKViewEvilKeyDown);
 ")
 
 (defun evil-collection-webkit-escape ()
-  (webkit--add-user-script webkit--id webkit--evil-escape-script))
+  (webkit-add-script webkit--evil-escape-script))
 
 (defun evil-collection-webkit-insert-on-insert ()
   (add-hook 'evil-insert-state-entry-hook 'webkit-insert-mode nil t))
 
 (defun evil-collection-webkit-unfocus-to-normal-mode (val)
+  (ignore val)
   (evil-normal-state))
 
 ;;;###autoload

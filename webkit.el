@@ -79,6 +79,7 @@
 (defvar webkit--buffers)
 (defvar webkit--scripts)
 (defvar webkit--styles)
+(defvar webkit--current-isearch-id)
 
 (defgroup webkit nil
   "The dynamic module webkit browser."
@@ -606,10 +607,7 @@ Returns the newly created webkit buffer"
                                               :noquery noquery)
                            webkit-own-window))
       (push buffer webkit--buffers)
-      (webkit--register-script-message
-       webkit--id "webkit--callback-unfocus")
-      (webkit--add-user-script webkit--id webkit--script)
-      (webkit--add-user-style webkit--id webkit--style)
+      (webkit--register-script-message webkit--id "webkit--callback-unfocus")
       (when webkit-cookie-file
         (webkit--cookie-set-storage
          webkit--id (expand-file-name webkit-cookie-file)))
@@ -650,7 +648,6 @@ the default webkit buffer."
           (webkit-history-completing-read prompt)
         (read-string prompt))
       (prefix-numeric-value current-prefix-arg))))
-  (require 'webkit-ace nil t)
   (let ((eww-search-prefix webkit-search-prefix))
     (webkit-browse-url (eww--dwim-expand-url url) (eq arg 4))))
 
