@@ -1,11 +1,15 @@
 { pkgs ? import <nixpkgs> {}
-, src ? ./.
-, version ? "git"
-, ... }:
+, trivialBuild ? pkgs.emacsPackages.trivialBuild
+# user arguments
+, packageSrc ? ./.
+, packageVersion ? "git"
+}:
 
-pkgs.emacsPackages.trivialBuild rec {
+trivialBuild rec {
   pname = "emacs-webkit";
-  inherit src version;
+
+  src = packageSrc;
+  version = packageVersion;
 
   buildPhase = ''
     make all
