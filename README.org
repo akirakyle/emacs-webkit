@@ -110,7 +110,7 @@ Make sure you have gcc, pkg-config, gtk3, glib-networking, and of course
 webkitgtk installed. Then just run ~make~ to make ~webkit-module.so~.
 
 Some package managers support custom build steps to automate building. For
-example with the [[https://github.com/raxod502/straight.el/][straight.el]] develop branch you can use this recipe
+example with the [[https://github.com/raxod502/straight.el/][straight.el]] master branch you can use this recipe
 
 #+begin_src emacs-lisp
 (straight-use-package
@@ -118,6 +118,16 @@ example with the [[https://github.com/raxod502/straight.el/][straight.el]] devel
           :branch "main"
           :files (:defaults "*.js" "*.css" "*.so")
           :build ("make")))
+#+end_src
+
+Alternatively, if you are using [[https://github.com/raxod502/straight.el/][straight.el]] develop branch
+
+#+begin_src emacs-lisp
+(straight-use-package
+ '(webkit :type git :host github :repo "akirakyle/emacs-webkit"
+          :branch "main"
+          :files (:defaults "*.js" "*.css" "*.so")
+          :pre-build ("make")))
 #+end_src
 
 I'm a bit hesitant to add lisp code to do this automagically or fetch prebuilt
