@@ -117,7 +117,7 @@ example with the [[https://github.com/raxod502/straight.el/][straight.el]] devel
  '(webkit :type git :host github :repo "akirakyle/emacs-webkit"
           :branch "main"
           :files (:defaults "*.js" "*.css" "*.so")
-          :build ("make")))
+          :pre-build ("make")))
 #+end_src
 
 I'm a bit hesitant to add lisp code to do this automagically or fetch prebuilt
