@@ -142,10 +142,10 @@ First ensure ~emacs-webkit~ is on your ~load-path~.
 
 #+begin_src emacs-lisp
 (use-package webkit
-  :bind (("s-b" . webkit)) ;; Bind to whatever global key binding you want if you want
+  :bind (("s-b" . xwidget-webkit-browse-url)) ;; Bind to whatever global key binding you want if you want
   :config
-  (require 'webkit-ace) ;; If you want link hinting
-  (require 'webkit-dark)) ;; If you want to use the simple dark mode
+    (require 'webkit-ace) ;; If you want link hinting
+    (require 'webkit-dark)) ;; If you want to use the simple dark mode
 #+end_src
 
 * Usage
