@@ -3,6 +3,13 @@
 
 #+html: <p align="center"><img src="screencast.gif" /></p>
 
+** Update
+
+I haven't had time since originally creating this to work further on it.
+Meanwhile bugs with xwidget on pgtk have been smoothed out upstream and some minimal maintenance continues to happen there.
+Thus if you want a browser in emacs, I recommend building with xwidgets (which also supports macos).
+I don't plan to continue any development on this for both technical and personal reasons, but I think it represents an interesting (albeit somewhat hacky) approach to pushing what is possible with emacs dynamic modules.
+
 ** Warning 1!
 
 This package is still in the early stages of active development. While I am
