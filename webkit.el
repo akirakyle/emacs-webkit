@@ -25,6 +25,9 @@
 
 ;;; Code:
 
+;; ol is an unmentioned dependency
+(require 'ol)
+
 ;; Don't require dynamic module at byte compile time.
 ;; Generate this list with:
 ;; awk -F\" '/mkfn*/ {print "(declare-function", $2, "\"webkit-module\")"}' webkit-module.c
